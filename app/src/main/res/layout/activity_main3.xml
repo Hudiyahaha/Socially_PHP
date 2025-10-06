@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main"
+    android:background="@color/white"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".MainActivity3">
+
+    <RelativeLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerInParent="true"
+        >
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Socially"
+            android:textSize="50sp"
+            android:textStyle="bold"
+            android:textColor="@color/SMD"
+            android:layout_centerHorizontal="true"
+            android:id="@+id/text"
+            />
+
+        <de.hdodenhof.circleimageview.CircleImageView
+            android:layout_marginTop="25dp"
+            android:id="@+id/profile"
+            android:layout_width="150dp"
+            android:layout_height="150dp"
+            android:src="@drawable/me"
+            android:layout_below="@id/text"
+            android:layout_centerHorizontal="true"
+
+            />
+
+        <com.google.android.material.button.MaterialButton
+            android:layout_width="match_parent"
+            android:layout_gravity="center_horizontal"
+            android:layout_height="wrap_content"
+            android:padding="20dp"
+            android:layout_marginTop="20dp"
+            android:layout_marginHorizontal="20dp"
+            android:text="Log in"
+            android:textSize="20sp"
+            android:textColor="@color/white"
+            android:backgroundTint="@color/button"
+            app:strokeColor="@color/border"
+            app:strokeWidth="2dp"
+            app:cornerRadius="10dp"
+            android:layout_below="@id/profile"
+            android:id="@+id/button"
+            />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Switch Accounts"
+            android:layout_below="@id/button"
+            android:layout_centerHorizontal="true"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:layout_marginTop="20dp"
+            android:textColor="@color/button"
+
+            />
+    </RelativeLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/view"
+            android:layout_above="@id/login"
+            android:layout_marginBottom="15dp"
+            />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Dont't Have an Account?"
+            android:layout_alignParentBottom="true"
+
+            android:textColor="@color/SMD"
+            android:layout_centerHorizontal="true"
+            android:layout_marginBottom="30dp"
+            android:id="@+id/login"
+            />
+
+         <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text=" Sign up."
+             android:layout_alignParentBottom="true"
+        android:textStyle="bold"
+             android:textColor="@color/SMD"
+             android:layout_toRightOf="@id/login"
+             android:layout_marginBottom="30dp"
+        />
+
+</RelativeLayout>
