@@ -2,6 +2,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="true" />
+
+    <uses-permission android:name="android.permission.CAMERA" />
+
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -12,14 +18,75 @@
         android:supportsRtl="true"
         android:theme="@style/Theme._23I0761_23I0765">
         <activity
+            android:name=".MainActivity22"
+            android:exported="false" />
+        <activity
+            android:name=".MainActivity21"
+            android:exported="false" />
+        <activity
+            android:name=".MainActivity20"
+            android:exported="false" />
+        <activity
+            android:name=".MainActivity19"
+            android:exported="false" />
+        <activity
+            android:name=".MainActivity18"
+            android:exported="false" />
+        <activity
+            android:name=".MainActivity16"
+            android:exported="false" />
+        <activity
+            android:name=".MainActivity15"
+            android:exported="false" />
+        <activity
+            android:name=".MainActivity14"
+            android:exported="false" />
+        <activity
+            android:name=".MainActivity13"
+            android:exported="false" />
+        <activity
+            android:name=".MainActivity12"
+            android:exported="false" />
+        <activity
+            android:name=".MainActivity11"
+            android:exported="false" />
+        <activity
+            android:name=".MainActivity10"
+            android:exported="false" />
+        <activity
+            android:name=".MainActivity9"
+            android:exported="false" />
+        <activity
+            android:name=".MainActivity8"
+            android:exported="false" />
+        <activity
+            android:name=".MainActivity7"
+            android:exported="false" />
+        <activity
+            android:name=".MainActivity6"
+            android:exported="false" />
+        <activity
+            android:name=".MainActivity5"
+            android:exported="false" />
+        <activity
+            android:name=".MainActivity4"
+            android:exported="false" />
+        <activity
+            android:name=".MainActivity3"
+            android:exported="false" />
+        <activity
+            android:name=".MainActivity2"
+            android:exported="false" />
+        <activity
             android:name=".MainActivity"
-            android:exported="false">
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
     </application>
 
 </manifest>
