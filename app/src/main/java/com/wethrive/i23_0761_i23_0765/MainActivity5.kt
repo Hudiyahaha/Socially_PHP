@@ -4,34 +4,40 @@ import android.Manifest
 import android.content.ContentValues
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
 import android.provider.MediaStore
 import android.util.Base64
-import android.util.Log
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
 import de.hdodenhof.circleimageview.CircleImageView
+import java.io.InputStream
 
 class MainActivity5 : AppCompatActivity() {
 
     private var photoUri: Uri? = null
+    private var selectedImageUri: Uri? = null
 
     private val requestPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
-            if (isGranted) {
-                openCamera()
+            if (isGranted) openCamera()
+        }
+
+    private val imagePickerLauncher =
+        registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+            if (uri != null) {
+                selectedImageUri = uri
+                uploadStoryToFirebase(uri)
             }
         }
+
     private val cameraLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             if (result.resultCode == RESULT_OK) {
@@ -46,56 +52,37 @@ class MainActivity5 : AppCompatActivity() {
         enableEdgeToEdge()
         setContentView(R.layout.activity_main5)
 
+        // UI Elements
         val search = findViewById<ImageView>(R.id.search_bar)
         val dm = findViewById<ImageView>(R.id.message_icon)
-
         val notis = findViewById<ImageView>(R.id.heart)
-        val profile_bottom = findViewById<CircleImageView>(R.id.profile2)
+        val profile = findViewById<CircleImageView>(R.id.profile2)
         val create = findViewById<ImageView>(R.id.create)
-
         val camera = findViewById<ImageView>(R.id.camera_icon)
         val your_story = findViewById<LinearLayout>(R.id.your_story)
-        val view_story = findViewById<LinearLayout>(R.id.view_story)
-        var profile=findViewById<CircleImageView>(R.id.profile)
+        val addstory = findViewById<ImageView>(R.id.addStoryIcon)
 
-        val uid = FirebaseAuth.getInstance().currentUser?.uid
-        if (uid != null) {
-            val databaseRef = FirebaseDatabase.getInstance().getReference("Users").child(uid)
-            databaseRef.child("dp").get()
-                .addOnSuccessListener { snapshot ->
-                    if (snapshot.exists()) {
-                        val imageString = snapshot.getValue(String::class.java)
-
-                        if (imageString != null) {
-                            val imageBytes = Base64.decode(imageString, Base64.DEFAULT)
-                            val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
-                            profile.setImageBitmap(bitmap)
-                            profile_bottom.setImageBitmap(bitmap)
-                        }
-                    }
-                }
-                .addOnFailureListener {
-                    Log.e("Firebase", "Error: ${it.message}")
-                }
+        // Upload story when "+" icon clicked
+        addstory.setOnClickListener {
+            imagePickerLauncher.launch("image/*")
         }
 
+        // Open your last story when PFP clicked
         your_story.setOnClickListener {
-            val intent = Intent(Intent.ACTION_PICK)
-            intent.type = "image/*"
-            startActivityForResult(intent, 101)
+            val user = FirebaseAuth.getInstance().currentUser
+            if (user != null) {
+                val intent = Intent(this, ViewStory::class.java)
+                intent.putExtra("userId", user.uid)  // Pass current user id
+                startActivity(intent)
+            }
         }
 
-        view_story.setOnClickListener {
-            val intent = Intent(this, MainActivity18::class.java)
-            startActivity(intent)
-        }
-
+        // Navigation buttons
         create.setOnClickListener {
-            val intent = Intent(this, MainActivity16::class.java)
-            startActivity(intent)
+            startActivity(Intent(this, MainActivity16::class.java))
         }
 
-        profile_bottom.setOnClickListener {
+        profile.setOnClickListener {
             val intent = Intent(this, MainActivity13::class.java)
             intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             startActivity(intent)
@@ -108,8 +95,7 @@ class MainActivity5 : AppCompatActivity() {
         }
 
         dm.setOnClickListener {
-            val intent = Intent(this, MainActivity8::class.java)
-            startActivity(intent)
+            startActivity(Intent(this, MainActivity8::class.java))
         }
 
         notis.setOnClickListener {
@@ -129,19 +115,60 @@ class MainActivity5 : AppCompatActivity() {
         }
     }
 
+    private fun uploadStoryToFirebase(uri: Uri) {
+        try {
+            val inputStream = contentResolver.openInputStream(uri)
+            val bytes = inputStream?.readBytes()
+            val base64String = Base64.encodeToString(bytes, Base64.DEFAULT)
+
+            val user = FirebaseAuth.getInstance().currentUser
+            if (user == null) {
+                Toast.makeText(this, "User not logged in", Toast.LENGTH_SHORT).show()
+                return
+            }
+
+            val ref = FirebaseDatabase.getInstance()
+                .getReference("stories")
+                .child(user.uid)
+                .push()
+
+            val story = Story(
+                id = ref.key,
+                userId = user.uid,
+                imageBase64 = base64String,
+                timestamp = System.currentTimeMillis()
+            )
+
+            ref.setValue(story).addOnCompleteListener { task ->
+                if (task.isSuccessful) {
+                    Toast.makeText(this, "Story uploaded!", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this, "Failed to upload story", Toast.LENGTH_SHORT).show()
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Toast.makeText(this, "Error uploading story", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     private fun openCamera() {
         val values = ContentValues().apply {
             put(MediaStore.Images.Media.TITLE, "IMG_${System.currentTimeMillis()}")
             put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
         }
+
         photoUri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
 
         val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
-
         if (photoUri != null) {
             intent.putExtra(MediaStore.EXTRA_OUTPUT, photoUri)
         }
 
         cameraLauncher.launch(intent)
+    }
+
+    private fun showToast(msg: String) {
+        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
     }
 }

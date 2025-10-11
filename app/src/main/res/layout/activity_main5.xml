@@ -60,404 +60,100 @@
         android:layout_height="1dp"
         android:background="@color/view"
         android:layout_below="@id/top_bar"/>
-
     <ScrollView
         android:id="@+id/scroll_area"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_below="@id/top_bar"
+        android:layout_below="@id/topbar_separator"
         android:layout_above="@id/bottom_nav"
-        android:fillViewport="true">
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical">
-
-    <!-- Horizontal Stories -->
-    <HorizontalScrollView
-        android:id="@+id/stories_scroll"
-        android:layout_width="match_parent"
-        android:layout_height="120dp"
-        android:layout_below="@id/top_bar"
-        android:scrollbars="none"
-        android:padding="8dp">
+        android:fillViewport="true"
+        android:overScrollMode="never">
 
         <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+    <LinearLayout
+        android:id="@+id/storyBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_below="@id/topbar_separator"
+        android:padding="8dp">
+
+        <!-- YOUR STORY -->
+        <LinearLayout
+            android:id="@+id/your_story"
             android:layout_width="wrap_content"
-            android:layout_height="match_parent"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:layout_marginEnd="12dp">
 
-<!--First story-->
-            <LinearLayout
-                android:id="@+id/your_story"
+            <FrameLayout
                 android:layout_width="wrap_content"
-                android:layout_height="match_parent"
-                android:orientation="vertical"
-                android:gravity="center"
-                android:layout_marginEnd="12dp">
+                android:layout_height="wrap_content">
 
-                <FrameLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    >
+                <de.hdodenhof.circleimageview.CircleImageView
+                    android:layout_width="80dp"
+                    android:layout_height="80dp"
+                    android:src="@drawable/gradient"
+                    android:layout_gravity="center" />
 
-                    <de.hdodenhof.circleimageview.CircleImageView
-                        android:layout_width="80dp"
-                        android:layout_height="80dp"
-                        android:src="@drawable/gradient"
-                        android:layout_gravity="center"
-                        />
+                <de.hdodenhof.circleimageview.CircleImageView
+                    android:layout_width="72dp"
+                    android:layout_height="72dp"
+                    android:src="@drawable/white_circle"
+                    android:layout_gravity="center" />
 
-                    <de.hdodenhof.circleimageview.CircleImageView
-                        android:layout_width="72dp"
-                        android:layout_height="72dp"
-                        android:src="@drawable/white_circle"
-                        android:layout_gravity="center"
-                        />
-                    <de.hdodenhof.circleimageview.CircleImageView
-                        android:layout_width="70dp"
-                        android:layout_height="70dp"
-                        android:src="@drawable/me"
-                        android:id="@+id/profile"
-                        android:scaleType="centerCrop"
-                        android:layout_gravity="center"
-                        />
+                <de.hdodenhof.circleimageview.CircleImageView
+                    android:layout_width="70dp"
+                    android:layout_height="70dp"
+                    android:src="@drawable/me"
+                    android:id="@+id/yourStoryImage"
+                    android:scaleType="centerCrop"
+                    android:layout_gravity="center" />
+                <ImageView
+                    android:id="@+id/addStoryIcon"
+                    android:layout_width="25dp"
+                    android:layout_height="25dp"
+                    android:src="@drawable/plus_circle"
+                    android:layout_gravity="bottom|end"
+                    android:layout_marginEnd="0dp"
+                    android:layout_marginBottom="-3dp"/>
+            </FrameLayout>
 
-                </FrameLayout>
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Your Story"
-                    android:textSize="12sp"
-                    android:textColor="@color/black"
-                    android:gravity="center" />
-
-            </LinearLayout>
-
-            <LinearLayout
-                android:id="@+id/view_story"
+            <TextView
                 android:layout_width="wrap_content"
-                android:layout_height="match_parent"
-                android:orientation="vertical"
-                android:gravity="center"
-                android:layout_marginEnd="12dp">
-
-                <FrameLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    >
-
-                    <de.hdodenhof.circleimageview.CircleImageView
-                        android:layout_width="80dp"
-                        android:layout_height="80dp"
-                        android:src="@drawable/gradient"
-                        android:layout_gravity="center"
-                        />
-
-                    <de.hdodenhof.circleimageview.CircleImageView
-                        android:layout_width="72dp"
-                        android:layout_height="72dp"
-                        android:src="@drawable/white_circle"
-                        android:layout_gravity="center"
-                        />
-                    <de.hdodenhof.circleimageview.CircleImageView
-                        android:layout_width="70dp"
-                        android:layout_height="70dp"
-                        android:src="@drawable/random2"
-                        android:layout_gravity="center"
-                        />
-
-                </FrameLayout>
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="craige_love"
-                    android:textSize="12sp"
-                    android:textColor="@color/black"
-
-                    android:gravity="center" />
-
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="match_parent"
-                android:orientation="vertical"
-                android:gravity="center"
-                android:layout_marginEnd="12dp">
-
-                <FrameLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    >
-
-                    <de.hdodenhof.circleimageview.CircleImageView
-                        android:layout_width="80dp"
-                        android:layout_height="80dp"
-                        android:src="@drawable/gradient"
-                        android:layout_gravity="center"
-                        />
-
-                    <de.hdodenhof.circleimageview.CircleImageView
-                        android:layout_width="72dp"
-                        android:layout_height="72dp"
-                        android:src="@drawable/white_circle"
-                        android:layout_gravity="center"
-                        />
-                    <de.hdodenhof.circleimageview.CircleImageView
-                        android:layout_width="70dp"
-                        android:layout_height="70dp"
-                        android:src="@drawable/random"
-                        android:layout_gravity="center"
-                        />
-
-                </FrameLayout>
-
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="zackjohn"
-                    android:textSize="12sp"
-                    android:textColor="@color/black"
-
-                    android:gravity="center" />
-
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="match_parent"
-                android:orientation="vertical"
-                android:gravity="center"
-                android:layout_marginEnd="12dp">
-
-                <FrameLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    >
-
-                    <de.hdodenhof.circleimageview.CircleImageView
-                        android:layout_width="80dp"
-                        android:layout_height="80dp"
-                        android:src="@drawable/gradient"
-                        android:layout_gravity="center"
-                        />
-
-                    <de.hdodenhof.circleimageview.CircleImageView
-                        android:layout_width="72dp"
-                        android:layout_height="72dp"
-                        android:src="@drawable/white_circle"
-                        android:layout_gravity="center"
-                        />
-                    <de.hdodenhof.circleimageview.CircleImageView
-                        android:layout_width="70dp"
-                        android:layout_height="70dp"
-                        android:src="@drawable/random5"
-                        android:layout_gravity="center"
-                        />
-
-                </FrameLayout>
-
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="kieron_d"
-                    android:textSize="12sp"
-                    android:textColor="@color/black"
-
-                    android:gravity="center" />
-
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="match_parent"
-                android:orientation="vertical"
-                android:gravity="center"
-                android:layout_marginEnd="12dp">
-
-                <FrameLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    >
-
-                    <de.hdodenhof.circleimageview.CircleImageView
-                        android:layout_width="80dp"
-                        android:layout_height="80dp"
-                        android:src="@drawable/gradient"
-                        android:layout_gravity="center"
-                        />
-
-                    <de.hdodenhof.circleimageview.CircleImageView
-                        android:layout_width="72dp"
-                        android:layout_height="72dp"
-                        android:src="@drawable/white_circle"
-                        android:layout_gravity="center"
-                        />
-                    <de.hdodenhof.circleimageview.CircleImageView
-                        android:layout_width="70dp"
-                        android:layout_height="70dp"
-                        android:src="@drawable/random6"
-
-                        android:layout_gravity="center"
-                        />
-
-                </FrameLayout>
-
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="karennne"
-                    android:textColor="@color/black"
-                    android:textSize="12sp"
-                    android:gravity="center" />
-
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="match_parent"
-                android:orientation="vertical"
-                android:gravity="center"
-                android:layout_marginEnd="12dp">
-
-                <FrameLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    >
-
-                    <de.hdodenhof.circleimageview.CircleImageView
-                        android:layout_width="80dp"
-                        android:layout_height="80dp"
-                        android:src="@drawable/gradient"
-                        android:layout_gravity="center"
-                        />
-
-                    <de.hdodenhof.circleimageview.CircleImageView
-                        android:layout_width="72dp"
-                        android:layout_height="72dp"
-                        android:src="@drawable/white_circle"
-                        android:layout_gravity="center"
-                        />
-                    <de.hdodenhof.circleimageview.CircleImageView
-                        android:layout_width="70dp"
-                        android:layout_height="70dp"
-                        android:src="@drawable/dummy"
-                        android:layout_gravity="center"
-                        />
-
-                </FrameLayout>
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Your Story"
-                    android:textSize="12sp"
-                    android:gravity="center" />
-
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="match_parent"
-                android:orientation="vertical"
-                android:gravity="center"
-                android:layout_marginEnd="12dp">
-
-                <FrameLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    >
-
-                    <de.hdodenhof.circleimageview.CircleImageView
-                        android:layout_width="80dp"
-                        android:layout_height="80dp"
-                        android:src="@drawable/gradient"
-                        android:layout_gravity="center"
-                        />
-
-                    <de.hdodenhof.circleimageview.CircleImageView
-                        android:layout_width="72dp"
-                        android:layout_height="72dp"
-                        android:src="@drawable/white_circle"
-                        android:layout_gravity="center"
-                        />
-                    <de.hdodenhof.circleimageview.CircleImageView
-                        android:layout_width="70dp"
-                        android:layout_height="70dp"
-                        android:src="@drawable/dummy"
-                        android:layout_gravity="center"
-                        />
-
-                </FrameLayout>
-
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Your Story"
-                    android:textSize="12sp"
-                    android:gravity="center" />
-
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="match_parent"
-                android:orientation="vertical"
-                android:gravity="center"
-                android:layout_marginEnd="12dp">
-
-
-                <FrameLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    >
-
-                    <de.hdodenhof.circleimageview.CircleImageView
-                        android:layout_width="80dp"
-                        android:layout_height="80dp"
-                        android:src="@drawable/gradient"
-                        android:layout_gravity="center"
-                        />
-
-                    <de.hdodenhof.circleimageview.CircleImageView
-                        android:layout_width="72dp"
-                        android:layout_height="72dp"
-                        android:src="@drawable/white_circle"
-                        android:layout_gravity="center"
-                        />
-                    <de.hdodenhof.circleimageview.CircleImageView
-                        android:layout_width="70dp"
-                        android:layout_height="70dp"
-                        android:src="@drawable/dummy"
-                        android:layout_gravity="center"
-                        />
-
-                </FrameLayout>
-
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Your Story"
-                    android:textSize="12sp"
-                    android:gravity="center" />
-
-            </LinearLayout>
-
+                android:layout_height="wrap_content"
+                android:text="Your Story"
+                android:textSize="12sp"
+                android:textColor="@color/black"
+                android:gravity="center" />
         </LinearLayout>
 
-    </HorizontalScrollView>
+        <!-- RecyclerView for other stories -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/storyRecyclerView"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            tools:listitem="@layout/item_story"
+            xmlns:tools="http://schemas.android.com/tools" />
 
-<!--        POST 1-->
+    </LinearLayout>
+
+
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+
+        <!--        POST 1-->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -1019,6 +715,7 @@
         </LinearLayout>
 
     </LinearLayout>
+        </LinearLayout>
 
     </ScrollView>
 
