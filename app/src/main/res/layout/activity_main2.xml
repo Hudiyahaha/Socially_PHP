@@ -59,6 +59,7 @@ android:src="@drawable/camera"
         android:layout_marginTop="3dp"/>
 
     <EditText
+        android:id="@+id/username"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:hint="tejpatil064"
@@ -114,6 +115,7 @@ android:layout_marginTop="3dp"
         android:layout_marginTop="3dp"/>
 
 <EditText
+    android:id="@+id/email"
 android:layout_width="match_parent"
 android:layout_height="wrap_content"
 android:hint="Enter E-mail"
@@ -133,6 +135,7 @@ android:layout_marginTop="3dp"
         android:layout_marginTop="3dp"/>
 
 <EditText
+    android:id="@+id/pass"
 android:layout_width="match_parent"
 android:layout_height="wrap_content"
 android:hint="Password"
@@ -156,6 +159,6 @@ android:drawableEnd="@drawable/activity"
         app:strokeColor="@color/border"
         app:strokeWidth="2dp"
         app:cornerRadius="12dp"
-        android:id="@+id/create"
+        android:id="@+id/signup"
         />
 </LinearLayout>
