@@ -5,10 +5,12 @@ import android.os.Bundle
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.TextView
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import com.google.firebase.auth.FirebaseAuth
 
 class MainActivity13 : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -23,7 +25,15 @@ class MainActivity13 : AppCompatActivity() {
         val create = findViewById<ImageView>(R.id.create)
         val notis = findViewById<ImageView>(R.id.heart)
         val search = findViewById<ImageView>(R.id.search)
+        val logoutButton = findViewById<TextView>(R.id.logout)
 
+        logoutButton.setOnClickListener {
+            FirebaseAuth.getInstance().signOut()
+            val intent = Intent(this, MainActivity4::class.java)
+            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(intent)
+            finish()
+        }
         search.setOnClickListener {
             val intent = Intent(this, MainActivity6::class.java)
             intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)

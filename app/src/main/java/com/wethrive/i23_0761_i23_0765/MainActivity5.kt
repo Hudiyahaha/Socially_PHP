@@ -27,7 +27,6 @@ class MainActivity5 : AppCompatActivity() {
                 openCamera()
             }
         }
-
     private val cameraLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             if (result.resultCode == RESULT_OK) {
@@ -36,7 +35,6 @@ class MainActivity5 : AppCompatActivity() {
                 }
             }
         }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -54,8 +52,9 @@ class MainActivity5 : AppCompatActivity() {
         val view_story = findViewById<LinearLayout>(R.id.view_story)
 
         your_story.setOnClickListener {
-            val intent = Intent(this, MainActivity19::class.java)
-            startActivity(intent)
+            val intent = Intent(Intent.ACTION_PICK)
+            intent.type = "image/*"
+            startActivityForResult(intent, 101)
         }
 
         view_story.setOnClickListener {
