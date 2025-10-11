@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "318080792961",
+    "project_id": "i-0761-23i-0765",
+    "storage_bucket": "i-0761-23i-0765.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:318080792961:android:d6bfcb93f583752b831080",
+        "android_client_info": {
+          "package_name": "com.wethrive.i23_0761_i23_0765"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCQr7Nf4t8cO762KYDMX9Aq68T80-loH2M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
