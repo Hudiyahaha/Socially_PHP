@@ -78,7 +78,7 @@
             />
 
         <com.google.android.material.button.MaterialButton
-            android:layout_below="@+id/forgot"
+            android:layout_below="@id/forgot"
             android:layout_width="match_parent"
             android:layout_gravity="center_horizontal"
             android:layout_height="wrap_content"
@@ -154,6 +154,7 @@
                 android:layout_height="wrap_content"
                 android:text=" Sign up."
                 android:textStyle="bold"
+                android:id="@+id/signup"
                 android:textColor="@color/SMD"
                 />
 
@@ -161,36 +162,36 @@
     </RelativeLayout>
     </RelativeLayout>
 
-    <RelativeLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_below="@id/part2"
-        >
+<!--    <RelativeLayout-->
+<!--        android:layout_width="match_parent"-->
+<!--        android:layout_height="wrap_content"-->
+<!--        android:layout_below="@id/part2"-->
+<!--        >-->
 
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="@color/view"
-            android:layout_alignParentTop="true"
-            android:layout_marginBottom="15dp"
-            android:layout_marginHorizontal="40dp"
-            android:layout_marginTop="50dp"
-            />
+<!--        <View-->
+<!--            android:layout_width="match_parent"-->
+<!--            android:layout_height="1dp"-->
+<!--            android:background="@color/view"-->
+<!--            android:layout_alignParentTop="true"-->
+<!--            android:layout_marginBottom="15dp"-->
+<!--            android:layout_marginHorizontal="40dp"-->
+<!--            android:layout_marginTop="50dp"-->
+<!--            />-->
 
 
-    </RelativeLayout>
+<!--    </RelativeLayout>-->
 
-    <TextView
-        android:id="@+id/last"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Socially"
-        android:textColor="@color/SMD"
-        android:textSize="20sp"
-        android:layout_alignParentBottom="true"
-        android:layout_marginBottom="25dp"
-        android:layout_centerHorizontal="true"
+<!--    <TextView-->
+<!--        android:id="@+id/last"-->
+<!--        android:layout_width="wrap_content"-->
+<!--        android:layout_height="wrap_content"-->
+<!--        android:text="Socially"-->
+<!--        android:textColor="@color/SMD"-->
+<!--        android:textSize="20sp"-->
+<!--        android:layout_alignParentBottom="true"-->
+<!--        android:layout_marginBottom="25dp"-->
+<!--        android:layout_centerHorizontal="true"-->
 
-        />
+<!--        />-->
     </RelativeLayout>
 

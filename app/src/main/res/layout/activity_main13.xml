@@ -31,7 +31,7 @@
             <ImageView
                 android:layout_width="10dp"
                 android:layout_height="10dp"
-                android:layout_toLeftOf="@id/jacob"
+                android:layout_toLeftOf="@id/uname"
                 android:layout_centerVertical="true"
                 android:src="@drawable/lock"
                 android:layout_marginEnd="6dp"
@@ -41,16 +41,16 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="jacob_w"
-                    android:id="@+id/jacob"
+                    android:id="@+id/uname"
                     android:textStyle="bold"
-                    android:textSize="20sp"
+                    android:textSize="16sp"
                     android:layout_gravity="center"
                     android:textColor="@color/SMD"
                     android:layout_centerInParent="true"
                     />
 
                 <ImageView
-                    android:layout_toRightOf="@id/jacob"
+                    android:layout_toRightOf="@id/uname"
                     android:layout_width="wrap_content"
                     android:layout_height="match_parent"
                     android:src="@drawable/chevrondown"
@@ -94,13 +94,11 @@
                 android:orientation="horizontal"
                 android:layout_marginHorizontal="10dp"
                 android:layout_marginVertical="15dp"
-
                 >
 
                 <FrameLayout
                     android:layout_width="100dp"
                     android:layout_height="100dp"
-                    android:id="@+id/profile"
                     >
                     <de.hdodenhof.circleimageview.CircleImageView
                         android:layout_width="90dp"
@@ -114,6 +112,7 @@
                         android:layout_width="80dp"
                         android:layout_height="80dp"
                         android:src="@drawable/me"
+                        android:id="@+id/profile"
                         android:layout_gravity="center"
                         />
 
@@ -232,37 +231,9 @@
                 android:text="Jacob West"
                 android:textSize="14sp"
                 android:textStyle="bold"
+                android:id="@+id/user"
                 android:textColor="@color/black"
-
                 />
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-
-                    >
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Digital goodies designer "
-                    android:textSize="13sp"
-                    android:textColor="@color/black"
-
-                    />
-
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="\@pixsellz "
-                    android:textSize="13sp"
-                    android:textColor="@color/mention"
-
-                    />
-                </LinearLayout>
-
 
                 <TextView
                     android:layout_width="wrap_content"
@@ -271,7 +242,9 @@
                     android:textSize="13sp"
                     android:textColor="@color/black"
                     android:layout_marginTop="2dp"
+                    android:id="@+id/bio"
                     />
+
 
             </LinearLayout>
 
@@ -807,6 +780,7 @@
                     android:layout_width="26dp"
                     android:layout_height="26dp"
                     android:src="@drawable/me"
+                    android:id="@+id/profile_bottom"
                     android:layout_gravity="center"
                     />
 
