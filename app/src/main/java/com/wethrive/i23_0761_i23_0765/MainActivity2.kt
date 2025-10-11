@@ -53,14 +53,14 @@ class MainActivity2 : AppCompatActivity() {
 
 
 
+   }
+ override fun onStart() {
+       super.onStart()
+    if (mAuth.currentUser!=null)
+        {
+            var i=Intent(this, MainActivity5::class.java)
+           startActivity(i)
+            finish()
+        }
     }
-//    override fun onStart() {
-//        super.onStart()
-//        if (mAuth.currentUser!=null)
-//        {
-//            var i=Intent(this, MainActivity5::class.java)
-//            startActivity(i)
-//            finish()
-//        }
-//    }
 }
