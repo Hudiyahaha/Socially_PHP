@@ -120,6 +120,7 @@
                         android:layout_width="70dp"
                         android:layout_height="70dp"
                         android:src="@drawable/me"
+                        android:id="@+id/profile"
                         android:scaleType="centerCrop"
                         android:layout_gravity="center"
                         />
