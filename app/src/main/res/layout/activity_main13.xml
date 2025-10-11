@@ -15,6 +15,18 @@
             android:layout_marginTop="38dp"
             android:id="@+id/top_bar"
             >
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Log out"
+                android:id="@+id/logout"
+                android:textStyle="bold"
+                android:textSize="14sp"
+                android:layout_gravity="center"
+                android:textColor="@color/SMD"
+                android:layout_alignParentStart="true"
+                android:layout_marginStart="20dp"
+                android:layout_centerVertical="true"/>
 
             <ImageView
                 android:layout_width="10dp"
@@ -120,7 +132,7 @@
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
                         android:gravity="center"
-                        android:layout_marginStart="17dp"
+                        android:layout_marginStart="10dp"
 
                         >
 
@@ -129,7 +141,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="54"
-                            android:textSize="25sp"
+                            android:textSize="20sp"
                             android:textStyle="bold"
                             android:textColor="@color/black"
                             android:layout_marginEnd="25dp"
@@ -142,7 +154,7 @@
                             android:text="834"
                             android:layout_marginEnd="25dp"
 
-                            android:textSize="25sp"
+                            android:textSize="20sp"
                             android:textStyle="bold"
                             android:textColor="@color/black"
                             />
@@ -152,7 +164,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="162"
-                            android:textSize="25sp"
+                            android:textSize="20sp"
                             android:textStyle="bold"
                             android:textColor="@color/black"
                             />
