@@ -17,34 +17,41 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
 import de.hdodenhof.circleimageview.CircleImageView
+import java.io.IOException
+
 
 class MainActivity5 : AppCompatActivity() {
 
     private var photoUri: Uri? = null
-    private var selectedImageUri: Uri? = null
 
     private val requestPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
             if (isGranted) openCamera()
         }
 
-    private val imagePickerLauncher =
-        registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-            if (uri != null) {
-                selectedImageUri = uri
-                uploadStoryToFirebase(uri)
+    private val mediaPickerLauncher =
+        registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+            if (uris.isNotEmpty()) {
+                for (uri in uris) {
+                    val mimeType = contentResolver.getType(uri)
+                    val isVideo = mimeType?.startsWith("video") == true
+                    uploadStoryToFirebase(uri, if (isVideo) "video" else "image")
+                }
+            } else {
+                Toast.makeText(this, "No media selected", Toast.LENGTH_SHORT).show()
             }
         }
+
+
     private val cameraLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             if (result.resultCode == RESULT_OK) {
                 photoUri?.let { uri ->
                     sendBroadcast(Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE, uri))
+                    uploadStoryToFirebase(uri, "image")
                 }
             }
         }
@@ -56,15 +63,15 @@ class MainActivity5 : AppCompatActivity() {
 
         val search = findViewById<ImageView>(R.id.search_bar)
         val dm = findViewById<ImageView>(R.id.message_icon)
-
         val notis = findViewById<ImageView>(R.id.heart)
         val profile_bottom = findViewById<CircleImageView>(R.id.profile2)
         val create = findViewById<ImageView>(R.id.create)
         val camera = findViewById<ImageView>(R.id.camera_icon)
         val your_story = findViewById<LinearLayout>(R.id.your_story)
+        val addstory = findViewById<ImageView>(R.id.addStoryIcon)
+        val profile = findViewById<CircleImageView>(R.id.profile)
 
-        var profile=findViewById<CircleImageView>(R.id.profile)
-
+        // Load profile picture
         val uid = FirebaseAuth.getInstance().currentUser?.uid
         if (uid != null) {
             val databaseRef = FirebaseDatabase.getInstance().getReference("Users").child(uid)
@@ -72,7 +79,6 @@ class MainActivity5 : AppCompatActivity() {
                 .addOnSuccessListener { snapshot ->
                     if (snapshot.exists()) {
                         val imageString = snapshot.getValue(String::class.java)
-
                         if (imageString != null) {
                             val imageBytes = Base64.decode(imageString, Base64.DEFAULT)
                             val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
@@ -86,44 +92,34 @@ class MainActivity5 : AppCompatActivity() {
                 }
         }
 
-
-        val addstory = findViewById<ImageView>(R.id.addStoryIcon)
-        // Upload story when "+" icon clicked
+        // Upload image/video story
         addstory.setOnClickListener {
-            imagePickerLauncher.launch("image/*")
+            mediaPickerLauncher.launch(arrayOf("image/*", "video/*"))
         }
 
-        // Open your last story when PFP clicked
+        // Open last story
         your_story.setOnClickListener {
             val user = FirebaseAuth.getInstance().currentUser
             if (user != null) {
                 val intent = Intent(this, ViewStory::class.java)
-                intent.putExtra("userId", user.uid)  // Pass current user id
+                intent.putExtra("userId", user.uid)
                 startActivity(intent)
             }
         }
 
         // Navigation buttons
-        create.setOnClickListener {
-            startActivity(Intent(this, MainActivity16::class.java))
-        }
-
+        create.setOnClickListener { startActivity(Intent(this, MainActivity16::class.java)) }
         profile_bottom.setOnClickListener {
             val intent = Intent(this, MainActivity13::class.java)
             intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             startActivity(intent)
         }
-
         search.setOnClickListener {
             val intent = Intent(this, MainActivity6::class.java)
             intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             startActivity(intent)
         }
-
-        dm.setOnClickListener {
-            startActivity(Intent(this, MainActivity8::class.java))
-        }
-
+        dm.setOnClickListener { startActivity(Intent(this, MainActivity8::class.java)) }
         notis.setOnClickListener {
             val intent = Intent(this, MainActivity11::class.java)
             intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
@@ -141,17 +137,23 @@ class MainActivity5 : AppCompatActivity() {
         }
     }
 
-    private fun uploadStoryToFirebase(uri: Uri) {
+    private fun uploadStoryToFirebase(uri: Uri, mediaType: String) {
         try {
             val inputStream = contentResolver.openInputStream(uri)
             val bytes = inputStream?.readBytes()
-            val base64String = Base64.encodeToString(bytes, Base64.DEFAULT)
 
-            val user = FirebaseAuth.getInstance().currentUser
-            if (user == null) {
-                Toast.makeText(this, "User not logged in", Toast.LENGTH_SHORT).show()
+            if (bytes == null || bytes.isEmpty()) {
+                Toast.makeText(this, "Unable to read file", Toast.LENGTH_SHORT).show()
                 return
             }
+
+            if (bytes.size > 3_000_000) {
+                Toast.makeText(this, "File too large! Keep under ~3MB.", Toast.LENGTH_SHORT).show()
+                return
+            }
+
+            val base64String = Base64.encodeToString(bytes, Base64.DEFAULT)
+            val user = FirebaseAuth.getInstance().currentUser ?: return
 
             val ref = FirebaseDatabase.getInstance()
                 .getReference("stories")
@@ -161,17 +163,21 @@ class MainActivity5 : AppCompatActivity() {
             val story = Story(
                 id = ref.key,
                 userId = user.uid,
-                imageBase64 = base64String,
+                mediaBase64 = base64String,
+                mediaType = mediaType,
                 timestamp = System.currentTimeMillis()
             )
 
-            ref.setValue(story).addOnCompleteListener { task ->
-                if (task.isSuccessful) {
+            ref.setValue(story).addOnCompleteListener {
+                if (it.isSuccessful) {
                     Toast.makeText(this, "Story uploaded!", Toast.LENGTH_SHORT).show()
                 } else {
                     Toast.makeText(this, "Failed to upload story", Toast.LENGTH_SHORT).show()
                 }
             }
+        } catch (e: IOException) {
+            e.printStackTrace()
+            Toast.makeText(this, "Error reading file", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
             e.printStackTrace()
             Toast.makeText(this, "Error uploading story", Toast.LENGTH_SHORT).show()
@@ -190,11 +196,6 @@ class MainActivity5 : AppCompatActivity() {
         if (photoUri != null) {
             intent.putExtra(MediaStore.EXTRA_OUTPUT, photoUri)
         }
-
         cameraLauncher.launch(intent)
-    }
-
-    private fun showToast(msg: String) {
-        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
     }
 }
