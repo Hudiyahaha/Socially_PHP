@@ -37,7 +37,7 @@ class MainActivity2 : AppCompatActivity() {
         val login=findViewById<TextView>(R.id.login)
         val profile=findViewById<CircleImageView>(R.id.profile_image)
         var img=""
-        
+
         // Restore previously selected image if any
 //        selectedImageUri = savedInstanceState?.getString("selectedImageUri")?.toUri()
 //        selectedImageUri?.let { profile.setImageURI(it) }
@@ -83,7 +83,7 @@ class MainActivity2 : AppCompatActivity() {
 
                         //Jo bhi user create hua hai uski Id dedo hamey
                         val uid = mAuth.currentUser?.uid
-                        
+
                         // yeh uid hamny apny userdata k object user mai daaldi
                         val user = UserData(uid, uname, em, img, "Hey there! I'm using Socially.")
 

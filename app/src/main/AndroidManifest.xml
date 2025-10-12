@@ -18,6 +18,9 @@
         android:supportsRtl="true"
         android:theme="@style/Theme._23I0761_23I0765">
         <activity
+            android:name=".ViewStory"
+            android:exported="false" />
+        <activity
             android:name=".MainActivity22"
             android:exported="false" />
         <activity
@@ -86,7 +89,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
     </application>
 
 </manifest>
