@@ -4,10 +4,12 @@ import android.Manifest
 import android.content.ContentValues
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
 import android.provider.MediaStore
 import android.util.Base64
+import android.util.Log
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.Toast
@@ -15,10 +17,11 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
 import de.hdodenhof.circleimageview.CircleImageView
-import java.io.InputStream
 
 class MainActivity5 : AppCompatActivity() {
 
@@ -37,7 +40,6 @@ class MainActivity5 : AppCompatActivity() {
                 uploadStoryToFirebase(uri)
             }
         }
-
     private val cameraLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             if (result.resultCode == RESULT_OK) {
@@ -52,16 +54,40 @@ class MainActivity5 : AppCompatActivity() {
         enableEdgeToEdge()
         setContentView(R.layout.activity_main5)
 
-        // UI Elements
         val search = findViewById<ImageView>(R.id.search_bar)
         val dm = findViewById<ImageView>(R.id.message_icon)
+
         val notis = findViewById<ImageView>(R.id.heart)
-        val profile = findViewById<CircleImageView>(R.id.profile2)
+        val profile_bottom = findViewById<CircleImageView>(R.id.profile2)
         val create = findViewById<ImageView>(R.id.create)
         val camera = findViewById<ImageView>(R.id.camera_icon)
         val your_story = findViewById<LinearLayout>(R.id.your_story)
-        val addstory = findViewById<ImageView>(R.id.addStoryIcon)
 
+        var profile=findViewById<CircleImageView>(R.id.profile)
+
+        val uid = FirebaseAuth.getInstance().currentUser?.uid
+        if (uid != null) {
+            val databaseRef = FirebaseDatabase.getInstance().getReference("Users").child(uid)
+            databaseRef.child("dp").get()
+                .addOnSuccessListener { snapshot ->
+                    if (snapshot.exists()) {
+                        val imageString = snapshot.getValue(String::class.java)
+
+                        if (imageString != null) {
+                            val imageBytes = Base64.decode(imageString, Base64.DEFAULT)
+                            val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+                            profile.setImageBitmap(bitmap)
+                            profile_bottom.setImageBitmap(bitmap)
+                        }
+                    }
+                }
+                .addOnFailureListener {
+                    Log.e("Firebase", "Error: ${it.message}")
+                }
+        }
+
+
+        val addstory = findViewById<ImageView>(R.id.addStoryIcon)
         // Upload story when "+" icon clicked
         addstory.setOnClickListener {
             imagePickerLauncher.launch("image/*")
@@ -82,7 +108,7 @@ class MainActivity5 : AppCompatActivity() {
             startActivity(Intent(this, MainActivity16::class.java))
         }
 
-        profile.setOnClickListener {
+        profile_bottom.setOnClickListener {
             val intent = Intent(this, MainActivity13::class.java)
             intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             startActivity(intent)
