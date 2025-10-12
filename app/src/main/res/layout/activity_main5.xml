@@ -60,6 +60,7 @@
         android:layout_height="1dp"
         android:background="@color/view"
         android:layout_below="@id/top_bar"/>
+
     <ScrollView
         android:id="@+id/scroll_area"
         android:layout_width="match_parent"
@@ -111,7 +112,7 @@
                     android:layout_width="70dp"
                     android:layout_height="70dp"
                     android:src="@drawable/me"
-                    android:id="@+id/yourStoryImage"
+                    android:id="@+id/profile"
                     android:scaleType="centerCrop"
                     android:layout_gravity="center" />
                 <ImageView
