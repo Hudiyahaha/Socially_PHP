@@ -6,13 +6,16 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Base64
+import android.util.Log
 import android.view.View
 import android.widget.ImageView
+import android.widget.TextView
 import android.widget.Toast
 import android.widget.VideoView
 import androidx.appcompat.app.AppCompatActivity
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
+import de.hdodenhof.circleimageview.CircleImageView
 import java.io.File
 
 class ViewStory : AppCompatActivity() {
@@ -79,6 +82,48 @@ class ViewStory : AppCompatActivity() {
 
         }.addOnFailureListener {
             Toast.makeText(this, "Failed to load stories", Toast.LENGTH_SHORT).show()
+        }
+
+        val profile = findViewById<CircleImageView>(R.id.profile)
+
+        // Load profile picture
+        val uid = FirebaseAuth.getInstance().currentUser?.uid
+        if (uid != null) {
+            val databaseRef = FirebaseDatabase.getInstance().getReference("Users").child(uid)
+            databaseRef.child("dp").get()
+                .addOnSuccessListener { snapshot ->
+                    if (snapshot.exists()) {
+                        val imageString = snapshot.getValue(String::class.java)
+                        if (imageString != null) {
+                            val imageBytes = Base64.decode(imageString, Base64.DEFAULT)
+                            val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+                            profile.setImageBitmap(bitmap)
+
+                        }
+                    }
+                }
+                .addOnFailureListener {
+                    Log.e("Firebase", "Error: ${it.message}")
+                }
+        }
+        val name=findViewById<TextView>(R.id.username)
+        val user = FirebaseAuth.getInstance().currentUser
+        if (user != null) {
+            val uid = user.uid
+            val ref = FirebaseDatabase.getInstance().getReference("Users").child(uid)
+
+            ref.get().addOnSuccessListener { snapshot ->
+                if (snapshot.exists()) {
+                    val username = snapshot.child("uname").getValue(String::class.java)
+                    if (username != null) {
+                        name.text = username
+                    } else {
+                        name.text = "Unknown User"
+                    }
+                }
+            }.addOnFailureListener {
+                Log.e("Firebase", "Failed to get username", it)
+            }
         }
     }
 
