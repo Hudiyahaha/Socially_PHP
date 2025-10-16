@@ -44,7 +44,16 @@ class MainActivity5 : AppCompatActivity() {
                 Toast.makeText(this, "No media selected", Toast.LENGTH_SHORT).show()
             }
         }
-
+    private val postPickerLauncher =
+        registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+            if (uris.isNotEmpty()) {
+                val intent = Intent(this, MainActivity16::class.java)
+                intent.putParcelableArrayListExtra("mediaUris", ArrayList(uris))
+                startActivity(intent)
+            } else {
+                Toast.makeText(this, "No media selected", Toast.LENGTH_SHORT).show()
+            }
+        }
 
     private val cameraLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -108,7 +117,9 @@ class MainActivity5 : AppCompatActivity() {
         }
 
         // Navigation buttons
-        create.setOnClickListener { startActivity(Intent(this, MainActivity16::class.java)) }
+        create.setOnClickListener {
+            startActivity(Intent(this, MainActivity16::class.java))
+        }
         profile_bottom.setOnClickListener {
             val intent = Intent(this, MainActivity13::class.java)
             intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
