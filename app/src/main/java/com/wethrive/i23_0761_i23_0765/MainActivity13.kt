@@ -13,6 +13,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.recyclerview.widget.RecyclerView
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
 import de.hdodenhof.circleimageview.CircleImageView
@@ -36,7 +37,6 @@ class MainActivity13 : AppCompatActivity() {
         var profile_bottom=findViewById<CircleImageView>(R.id.profile_bottom)
         val user=findViewById<TextView>(R.id.user)
         val bio= findViewById<TextView>(R.id.bio)
-
         val uid = FirebaseAuth.getInstance().currentUser?.uid
         if (uid != null) {
             val databaseRef = FirebaseDatabase.getInstance().getReference("Users").child(uid)
@@ -74,6 +74,47 @@ class MainActivity13 : AppCompatActivity() {
                 .addOnFailureListener {
                     Log.e("Firebase", "Error: ${it.message}")
                 }
+        }
+        val recyclerView = findViewById<RecyclerView>(R.id.postRecycler)
+        recyclerView.layoutManager = androidx.recyclerview.widget.GridLayoutManager(this, 3)
+
+
+        if (uid != null) {
+            val postsRef = com.google.firebase.database.FirebaseDatabase.getInstance()
+                .getReference("Posts").child(uid)
+            val postList = mutableListOf<String>()
+            val postIds = mutableListOf<String>()
+            val adapter = PostAdapter(postList, postIds) { postId ->
+                val intent = Intent(this, ViewPost::class.java)
+                intent.putExtra("uid", uid)
+                intent.putExtra("postId", postId)
+                startActivity(intent)
+            }
+            recyclerView.adapter = adapter
+
+            postsRef.addValueEventListener(object : com.google.firebase.database.ValueEventListener {
+                override fun onDataChange(snapshot: com.google.firebase.database.DataSnapshot) {
+                    postList.clear()
+                    postIds.clear()
+
+                    for (postSnapshot in snapshot.children) {
+                        val imagesNode = postSnapshot.child("images")
+                        val firstImage = imagesNode.children.firstOrNull()?.getValue(String::class.java)
+                        if (firstImage != null) {
+                            postList.add(firstImage)
+                            postIds.add(postSnapshot.key!!)
+                        }
+                    }
+                    adapter.notifyDataSetChanged()
+                }
+
+                override fun onCancelled(error: com.google.firebase.database.DatabaseError) {
+                    Log.e("Firebase", "Failed to load posts: ${error.message}")
+                }
+            })
+
+
+
         }
 
         logoutButton.setOnClickListener {
