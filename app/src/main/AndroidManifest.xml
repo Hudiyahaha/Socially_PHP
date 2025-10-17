@@ -6,8 +6,9 @@
         android:name="android.hardware.camera"
         android:required="true" />
 
-    <uses-permission android:name="android.permission.CAMERA" /> <!-- Added for Firebase Realtime Database / Network access -->
-    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
 
     <application
         android:allowBackup="true"
@@ -26,6 +27,9 @@
             android:exported="false" />
         <activity
             android:name=".friends"
+            android:exported="false" />
+        <activity
+            android:name=".ViewPost"
             android:exported="false" />
         <activity
             android:name=".ViewStory"
