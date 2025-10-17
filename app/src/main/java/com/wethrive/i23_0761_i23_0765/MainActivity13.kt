@@ -11,8 +11,6 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
@@ -35,13 +33,19 @@ class MainActivity13 : AppCompatActivity() {
         val notis = findViewById<ImageView>(R.id.heart)
         val search = findViewById<ImageView>(R.id.search)
         val logoutButton = findViewById<TextView>(R.id.logout)
-        var profile=findViewById<CircleImageView>(R.id.profile)
-        var profile_bottom=findViewById<CircleImageView>(R.id.profile_bottom)
+        val profile=findViewById<CircleImageView>(R.id.profile)
+        val profile_bottom=findViewById<CircleImageView>(R.id.profile_bottom)
         val user=findViewById<TextView>(R.id.user)
         val bio= findViewById<TextView>(R.id.bio)
         val posts= findViewById<TextView>(R.id.posts)
         val followers= findViewById<TextView>(R.id.followers)
         val following= findViewById<TextView>(R.id.following)
+        val followers_screen= findViewById<LinearLayout>(R.id.follower_screen)
+        val following_screen= findViewById<LinearLayout>(R.id.following_screen)
+
+
+
+
 
         val uid = FirebaseAuth.getInstance().currentUser?.uid
 
@@ -168,6 +172,17 @@ class MainActivity13 : AppCompatActivity() {
 
         edit_profile.setOnClickListener {
             val intent= Intent(this, MainActivity15::class.java)
+            startActivity(intent)
+        }
+
+        // Open followers / following screens
+        followers_screen.setOnClickListener {
+            val intent = Intent(this, FollowersActivity::class.java)
+            startActivity(intent)
+        }
+
+        following_screen.setOnClickListener {
+            val intent = Intent(this, FollowingActivity::class.java)
             startActivity(intent)
         }
 
