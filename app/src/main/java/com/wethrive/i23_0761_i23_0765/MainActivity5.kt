@@ -17,6 +17,8 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
 import de.hdodenhof.circleimageview.CircleImageView
@@ -79,6 +81,7 @@ class MainActivity5 : AppCompatActivity() {
         val your_story = findViewById<LinearLayout>(R.id.your_story)
         val addstory = findViewById<ImageView>(R.id.addStoryIcon)
         val profile = findViewById<CircleImageView>(R.id.profile)
+        val storyRecyclerView = findViewById<RecyclerView>(R.id.storyRecyclerView)
 
         // Load profile picture
         val uid = FirebaseAuth.getInstance().currentUser?.uid
@@ -90,7 +93,8 @@ class MainActivity5 : AppCompatActivity() {
                         val imageString = snapshot.getValue(String::class.java)
                         if (imageString != null) {
                             val imageBytes = Base64.decode(imageString, Base64.DEFAULT)
-                            val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+                            val bitmap =
+                                BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
                             profile.setImageBitmap(bitmap)
                             profile_bottom.setImageBitmap(bitmap)
                         }
@@ -100,6 +104,64 @@ class MainActivity5 : AppCompatActivity() {
                     Log.e("Firebase", "Error: ${it.message}")
                 }
         }
+        val storyList = mutableListOf<Story>()
+        storyRecyclerView.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+
+        val storyAdapter = StoryAdapter(storyList) { story ->
+            val intent = Intent(this, ViewStory::class.java)
+            intent.putExtra("userId", story.userId)
+            startActivity(intent)
+        }
+        storyRecyclerView.adapter = storyAdapter
+
+        val followingRef = FirebaseDatabase.getInstance().getReference("Following").child(uid!!)
+        val storiesRef = FirebaseDatabase.getInstance().getReference("stories")
+
+        followingRef.get().addOnSuccessListener { snapshot ->
+            val followingIDs = mutableListOf<String>()
+            for (child in snapshot.children) {
+                followingIDs.add(child.key.toString())
+            }
+            storyList.clear()
+
+            var completedRequests = 0
+            val totalRequests = followingIDs.size
+
+            for (id in followingIDs) {
+                storiesRef.child(id).get().addOnSuccessListener { storySnapshot ->
+                    if (storySnapshot.exists()) {
+                        var latestStory: Story? = null
+                        for (storyChild in storySnapshot.children) {
+                            val story = storyChild.getValue(Story::class.java)
+                            if (story != null && !story.mediaBase64.isNullOrEmpty()) {
+                                story.userId = id
+                                if (latestStory == null || story.timestamp > latestStory!!.timestamp) {
+                                    latestStory = story
+                                }
+                            }
+                        }
+                        if (latestStory != null) {
+                            storyList.add(latestStory)
+                        }
+                    }
+
+                    completedRequests++
+                    if (completedRequests == totalRequests) {
+                        storyList.sortByDescending { it.timestamp }
+                        storyAdapter.notifyDataSetChanged()
+                    }
+
+                }.addOnFailureListener {
+                    completedRequests++
+                    if (completedRequests == totalRequests) {
+                        storyList.sortByDescending { it.timestamp }
+                        storyAdapter.notifyDataSetChanged()
+                    }
+                }
+            }
+        }
+
+
 
         // Upload image/video story
         addstory.setOnClickListener {
@@ -116,7 +178,7 @@ class MainActivity5 : AppCompatActivity() {
             }
         }
 
-        // Navigation buttons
+
         create.setOnClickListener {
             startActivity(Intent(this, MainActivity16::class.java))
         }
