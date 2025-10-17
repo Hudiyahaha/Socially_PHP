@@ -77,18 +77,38 @@
 
     </LinearLayout>
 
+ <RelativeLayout
+     android:layout_width="match_parent"
+     android:layout_height="52dp"
+     android:layout_below="@id/views"
+     android:id="@+id/follow"
+
+     >
     <TextView
         android:layout_width="match_parent"
-        android:layout_height="40dp"
+        android:layout_height="match_parent"
         android:textSize="18sp"
         android:text="Follow Requests"
         android:textColor="@color/SMD"
-        android:layout_below="@id/views"
         android:gravity="center_vertical"
         android:layout_marginStart="20dp"
         android:layout_marginVertical="10dp"
-        android:id="@+id/follow"
+        android:layout_alignParentStart="true"
         />
+
+     <TextView
+         android:layout_width="wrap_content"
+         android:layout_height="wrap_content"
+         android:text="0"
+         android:layout_alignParentEnd="true"
+         android:layout_centerVertical="true"
+         android:textColor="@color/SMD"
+         android:textSize="18sp"
+         android:layout_marginEnd="25dp"
+         android:id="@+id/follow_count"
+         />
+
+ </RelativeLayout>
 
     <View
         android:id="@+id/scroll"

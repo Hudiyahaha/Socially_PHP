@@ -70,19 +70,17 @@
             android:orientation="vertical"
             android:padding="8dp">
 
-            <!-- Chips Row -->
-            <HorizontalScrollView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:scrollbars="none">
-
                 <LinearLayout
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal">
+                    android:orientation="horizontal"
+                    android:gravity="center"
+                    android:layout_gravity="center"
+                    android:padding="2dp"
+                    android:layout_marginHorizontal="2dp">
 
                     <com.google.android.material.button.MaterialButton
-                        android:layout_width="wrap_content"
+                        android:layout_width="100dp"
                         android:layout_height="wrap_content"
                         android:text="Shop"
                         android:textColor="@color/button"
@@ -90,25 +88,25 @@
                         app:strokeColor="@color/view"
                         app:strokeWidth="2dp"
                         app:cornerRadius="8dp"
-                        android:layout_marginEnd="8dp"
-                        app:icon="@drawable/shoppingbag"
+                        android:layout_marginEnd="4dp"
                         app:iconGravity="textStart"
-                        app:iconPadding="8dp"
-                        app:iconTint="@color/button"/>
+                        app:iconTint="@color/button"
+                        />
 
                     <com.google.android.material.button.MaterialButton
-                        android:layout_width="wrap_content"
+                        android:layout_width="128dp"
                         android:layout_height="wrap_content"
-                        android:text="Style"
-                        android:textColor="@color/button"
-                        android:backgroundTint="@color/white"
+                        android:text="Find Friends"
+                        android:textColor="@color/white"
+                        android:backgroundTint="@color/SMD"
                         app:strokeColor="@color/view"
                         app:strokeWidth="2dp"
                         app:cornerRadius="8dp"
-                        android:layout_marginEnd="8dp"/>
+                        android:layout_marginEnd="4dp"
+                        android:id="@+id/friends"/>
 
                     <com.google.android.material.button.MaterialButton
-                        android:layout_width="wrap_content"
+                        android:layout_width="100dp"
                         android:layout_height="wrap_content"
                         android:text="Sports"
                         android:textColor="@color/button"
@@ -116,65 +114,9 @@
                         app:strokeColor="@color/view"
                         app:strokeWidth="2dp"
                         app:cornerRadius="8dp"
-                        android:layout_marginEnd="8dp"/>
-
-                    <com.google.android.material.button.MaterialButton
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Auto"
-                        android:textColor="@color/button"
-                        android:backgroundTint="@color/white"
-                        app:strokeColor="@color/view"
-                        app:strokeWidth="2dp"
-                        app:cornerRadius="8dp"
-                        android:layout_marginEnd="8dp"/>
-
-                    <com.google.android.material.button.MaterialButton
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Music"
-                        android:textColor="@color/button"
-                        android:backgroundTint="@color/white"
-                        app:strokeColor="@color/view"
-                        app:strokeWidth="2dp"
-                        app:cornerRadius="8dp"
-                        android:layout_marginEnd="8dp"/>
-
-                    <com.google.android.material.button.MaterialButton
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="News"
-                        android:textColor="@color/button"
-                        android:backgroundTint="@color/white"
-                        app:strokeColor="@color/view"
-                        app:strokeWidth="2dp"
-                        app:cornerRadius="8dp"
-                        android:layout_marginEnd="8dp"/>
-
-                    <com.google.android.material.button.MaterialButton
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Tech"
-                        android:textColor="@color/button"
-                        android:backgroundTint="@color/white"
-                        app:strokeColor="@color/view"
-                        app:strokeWidth="2dp"
-                        app:cornerRadius="8dp"
-                        android:layout_marginEnd="8dp"/>
-
-                    <com.google.android.material.button.MaterialButton
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Entertainment"
-                        android:textColor="@color/button"
-                        android:backgroundTint="@color/white"
-                        app:strokeColor="@color/view"
-                        app:strokeWidth="2dp"
-                        app:cornerRadius="8dp"
-                        android:layout_marginEnd="8dp"/>
+                        />
 
                 </LinearLayout>
-            </HorizontalScrollView>
 
             <!-- Grid of Images -->
             <LinearLayout

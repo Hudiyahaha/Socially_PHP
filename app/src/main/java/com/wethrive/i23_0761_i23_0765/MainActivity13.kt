@@ -14,7 +14,10 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.database.DataSnapshot
+import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.ValueEventListener
 import de.hdodenhof.circleimageview.CircleImageView
 
 class MainActivity13 : AppCompatActivity() {
@@ -36,8 +39,12 @@ class MainActivity13 : AppCompatActivity() {
         var profile_bottom=findViewById<CircleImageView>(R.id.profile_bottom)
         val user=findViewById<TextView>(R.id.user)
         val bio= findViewById<TextView>(R.id.bio)
+        val posts= findViewById<TextView>(R.id.posts)
+        val followers= findViewById<TextView>(R.id.followers)
+        val following= findViewById<TextView>(R.id.following)
 
         val uid = FirebaseAuth.getInstance().currentUser?.uid
+
         if (uid != null) {
             val databaseRef = FirebaseDatabase.getInstance().getReference("Users").child(uid)
 
@@ -49,6 +56,51 @@ class MainActivity13 : AppCompatActivity() {
                 }
             }
 
+// YAHAN PY DATABASE SY UTH K NUMBER OF POSTS AUR FOLLOWERS AUR FOLLOWING AARHY HAIN
+            var ref=FirebaseDatabase.getInstance().getReference("Followers").child(uid)
+
+           ref.addListenerForSingleValueEvent(object : ValueEventListener {
+                override fun onDataChange(snapshot: DataSnapshot) {
+                    val count = snapshot.childrenCount
+                    followers.text = count.toString()
+                }
+
+                override fun onCancelled(error: DatabaseError) {
+                    // Handle error if needed
+                    followers.text="-1"
+                }
+            })
+
+             ref=FirebaseDatabase.getInstance().getReference("Following").child(uid)
+
+            ref.addListenerForSingleValueEvent(object : ValueEventListener {
+                override fun onDataChange(snapshot: DataSnapshot) {
+                    val count = snapshot.childrenCount
+                    following.text = count.toString()
+                }
+
+                override fun onCancelled(error: DatabaseError) {
+                    // Handle error if needed
+                    following.text="-1"
+                }
+            })
+
+            ref=FirebaseDatabase.getInstance().getReference("Posts").child(uid)
+
+            ref.addListenerForSingleValueEvent(object : ValueEventListener {
+                override fun onDataChange(snapshot: DataSnapshot) {
+                    val count = snapshot.childrenCount
+                    posts.text = count.toString()
+                }
+
+                override fun onCancelled(error: DatabaseError) {
+                    // Handle error if needed
+                    posts.text="-1"
+                }
+            })
+//----------------------------------------------------------------------------separator
+
+
             databaseRef.child("uname").get().addOnSuccessListener {
                 if(it.exists())
                 {
@@ -58,6 +110,7 @@ class MainActivity13 : AppCompatActivity() {
 
                 }
             }
+
             databaseRef.child("dp").get()
                 .addOnSuccessListener { snapshot ->
                     if (snapshot.exists()) {

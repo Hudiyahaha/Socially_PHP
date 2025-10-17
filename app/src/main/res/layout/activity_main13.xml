@@ -136,10 +136,10 @@
                         >
 
                         <TextView
-                            android:id="@+id/one"
+                            android:id="@+id/posts"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="54"
+                            android:text="0"
                             android:textSize="20sp"
                             android:textStyle="bold"
                             android:textColor="@color/black"
@@ -147,10 +147,10 @@
                             />
 
                         <TextView
-                            android:id="@+id/two"
+                            android:id="@+id/followers"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="834"
+                            android:text="0"
                             android:layout_marginEnd="25dp"
 
                             android:textSize="20sp"
@@ -159,10 +159,10 @@
                             />
 
                         <TextView
-                            android:id="@+id/three"
+                            android:id="@+id/following"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="162"
+                            android:text="0"
                             android:textSize="20sp"
                             android:textStyle="bold"
                             android:textColor="@color/black"
