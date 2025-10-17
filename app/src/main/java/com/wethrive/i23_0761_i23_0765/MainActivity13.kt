@@ -15,7 +15,10 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.database.DataSnapshot
+import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.ValueEventListener
 import de.hdodenhof.circleimageview.CircleImageView
 
 class MainActivity13 : AppCompatActivity() {
@@ -33,11 +36,22 @@ class MainActivity13 : AppCompatActivity() {
         val notis = findViewById<ImageView>(R.id.heart)
         val search = findViewById<ImageView>(R.id.search)
         val logoutButton = findViewById<TextView>(R.id.logout)
-        var profile=findViewById<CircleImageView>(R.id.profile)
-        var profile_bottom=findViewById<CircleImageView>(R.id.profile_bottom)
+        val profile=findViewById<CircleImageView>(R.id.profile)
+        val profile_bottom=findViewById<CircleImageView>(R.id.profile_bottom)
         val user=findViewById<TextView>(R.id.user)
         val bio= findViewById<TextView>(R.id.bio)
+        val posts= findViewById<TextView>(R.id.posts)
+        val followers= findViewById<TextView>(R.id.followers)
+        val following= findViewById<TextView>(R.id.following)
+        val followers_screen= findViewById<LinearLayout>(R.id.follower_screen)
+        val following_screen= findViewById<LinearLayout>(R.id.following_screen)
+
+
+
+
+
         val uid = FirebaseAuth.getInstance().currentUser?.uid
+
         if (uid != null) {
             val databaseRef = FirebaseDatabase.getInstance().getReference("Users").child(uid)
 
@@ -49,6 +63,51 @@ class MainActivity13 : AppCompatActivity() {
                 }
             }
 
+// YAHAN PY DATABASE SY UTH K NUMBER OF POSTS AUR FOLLOWERS AUR FOLLOWING AARHY HAIN
+            var ref=FirebaseDatabase.getInstance().getReference("Followers").child(uid)
+
+           ref.addListenerForSingleValueEvent(object : ValueEventListener {
+                override fun onDataChange(snapshot: DataSnapshot) {
+                    val count = snapshot.childrenCount
+                    followers.text = count.toString()
+                }
+
+                override fun onCancelled(error: DatabaseError) {
+                    // Handle error if needed
+                    followers.text="-1"
+                }
+            })
+
+             ref=FirebaseDatabase.getInstance().getReference("Following").child(uid)
+
+            ref.addListenerForSingleValueEvent(object : ValueEventListener {
+                override fun onDataChange(snapshot: DataSnapshot) {
+                    val count = snapshot.childrenCount
+                    following.text = count.toString()
+                }
+
+                override fun onCancelled(error: DatabaseError) {
+                    // Handle error if needed
+                    following.text="-1"
+                }
+            })
+
+            ref=FirebaseDatabase.getInstance().getReference("Posts").child(uid)
+
+            ref.addListenerForSingleValueEvent(object : ValueEventListener {
+                override fun onDataChange(snapshot: DataSnapshot) {
+                    val count = snapshot.childrenCount
+                    posts.text = count.toString()
+                }
+
+                override fun onCancelled(error: DatabaseError) {
+                    // Handle error if needed
+                    posts.text="-1"
+                }
+            })
+//----------------------------------------------------------------------------separator
+
+
             databaseRef.child("uname").get().addOnSuccessListener {
                 if(it.exists())
                 {
@@ -58,6 +117,7 @@ class MainActivity13 : AppCompatActivity() {
 
                 }
             }
+
             databaseRef.child("dp").get()
                 .addOnSuccessListener { snapshot ->
                     if (snapshot.exists()) {
@@ -156,6 +216,17 @@ class MainActivity13 : AppCompatActivity() {
 
         edit_profile.setOnClickListener {
             val intent= Intent(this, MainActivity15::class.java)
+            startActivity(intent)
+        }
+
+        // Open followers / following screens
+        followers_screen.setOnClickListener {
+            val intent = Intent(this, FollowersActivity::class.java)
+            startActivity(intent)
+        }
+
+        following_screen.setOnClickListener {
+            val intent = Intent(this, FollowingActivity::class.java)
             startActivity(intent)
         }
 

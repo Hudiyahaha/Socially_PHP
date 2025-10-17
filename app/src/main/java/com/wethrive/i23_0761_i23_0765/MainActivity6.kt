@@ -5,8 +5,7 @@ import android.os.Bundle
 import android.widget.ImageView
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
+import com.google.android.material.button.MaterialButton
 import de.hdodenhof.circleimageview.CircleImageView
 
 class MainActivity6 : AppCompatActivity() {
@@ -20,6 +19,13 @@ class MainActivity6 : AppCompatActivity() {
         val profile=findViewById<CircleImageView>(R.id.profile)
         val create = findViewById<ImageView>(R.id.create)
         val notis = findViewById<ImageView>(R.id.heart)
+        val friendsButton=findViewById<MaterialButton>(R.id.friends)
+
+
+        friendsButton.setOnClickListener {
+            val intent= Intent(this, friends::class.java)
+            startActivity(intent)
+        }
 
         notis.setOnClickListener {
             val intent = Intent(this, MainActivity11::class.java)

@@ -30,7 +30,6 @@
             android:id="@+id/profile"
             android:layout_width="150dp"
             android:layout_height="150dp"
-            android:src="@drawable/me"
             android:layout_below="@id/text"
             android:layout_centerHorizontal="true"
 
