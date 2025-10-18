@@ -26,7 +26,7 @@ class ViewPost : AppCompatActivity() {
         val postId = intent.getStringExtra("postId")!!
 
         val imagesRef = FirebaseDatabase.getInstance()
-            .getReference("Posts").child(uid).child(postId).child("images")
+            .getReference("Posts").child(uid).child(postId).child("mediaBase64List")
 
         val imageList = mutableListOf<String>()
         val adapter = ImageAdapter(imageList)
