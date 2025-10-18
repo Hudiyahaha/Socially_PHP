@@ -7,6 +7,7 @@ data class Message(
     var receiverId: String? = null,
     var text: String? = null,
     var imageUrl: String? = null,
+    var imageBase64: String? = null,
     var postId: String? = null,
     var timestamp: Long = 0L,
     var edited: Boolean = false,

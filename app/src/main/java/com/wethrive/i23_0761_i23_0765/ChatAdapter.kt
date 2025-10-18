@@ -2,6 +2,7 @@ package com.wethrive.i23_0761_i23_0765
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.util.Base64
 import android.util.LruCache
 import android.view.LayoutInflater
 import android.view.View
@@ -85,15 +86,24 @@ class ChatAdapter(
                 tvMessage.text = ""
             }
 
-            // Image binding
+            // Image binding: prefer URL, else Base64
             val url = m.imageUrl
-            if (!url.isNullOrBlank()) {
-                imageMessage.visibility = View.VISIBLE
-                imageMessage.contentDescription = "Image message"
-                SimpleImageLoader.load(url, imageMessage)
-            } else {
-                imageMessage.visibility = View.GONE
-                imageMessage.setImageDrawable(null)
+            val b64 = m.imageBase64
+            when {
+                !url.isNullOrBlank() -> {
+                    imageMessage.visibility = View.VISIBLE
+                    imageMessage.contentDescription = "Image message"
+                    SimpleImageLoader.load(url, imageMessage)
+                }
+                !b64.isNullOrBlank() -> {
+                    imageMessage.visibility = View.VISIBLE
+                    imageMessage.contentDescription = "Image message"
+                    SimpleImageLoader.loadBase64(b64, imageMessage)
+                }
+                else -> {
+                    imageMessage.visibility = View.GONE
+                    imageMessage.setImageDrawable(null)
+                }
             }
 
             // Time
@@ -138,6 +148,33 @@ private object SimpleImageLoader {
         }.start()
     }
 
+    fun loadBase64(b64: String, imageView: ImageView) {
+        // Build a stable cache key without storing the entire string key
+        val key = "b64_" + b64.hashCode()
+        cache.get(key)?.let { bmp ->
+            imageView.setImageBitmap(bmp)
+            return
+        }
+
+        imageView.tag = key
+        imageView.setImageDrawable(null)
+
+        Thread {
+            try {
+                val bytes = Base64.decode(b64, Base64.DEFAULT)
+                val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                if (bmp != null) {
+                    cache.put(key, bmp)
+                    if (imageView.tag == key) {
+                        imageView.post { imageView.setImageBitmap(bmp) }
+                    }
+                }
+            } catch (_: Exception) {
+                // ignore failures silently
+            }
+        }.start()
+    }
+
     private fun downloadBitmap(urlStr: String): Bitmap? {
         var conn: HttpURLConnection? = null
         return try {
@@ -156,4 +193,3 @@ private object SimpleImageLoader {
         }
     }
 }
-
