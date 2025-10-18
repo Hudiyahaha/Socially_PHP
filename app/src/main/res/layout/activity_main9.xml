@@ -69,6 +69,46 @@
         </LinearLayout>
     </RelativeLayout>
 
+    <!-- Call status banner (hidden by default) -->
+    <LinearLayout
+        android:id="@+id/call_status_container"
+        android:layout_width="match_parent"
+        android:layout_height="36dp"
+        android:visibility="gone"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:paddingTop="6dp"
+        android:paddingBottom="6dp"
+        android:background="@color/msg"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/call_status_text"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textColor="#000000"
+            android:textSize="14sp"
+            android:text="Connecting…" />
+
+        <TextView
+            android:id="@+id/call_timer_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#000000"
+            android:textSize="14sp"
+            android:text="00:00"
+            android:layout_marginStart="12dp" />
+
+        <View
+            android:id="@+id/call_level_bar"
+            android:layout_width="48dp"
+            android:layout_height="6dp"
+            android:layout_marginStart="12dp"
+            android:background="@android:color/holo_green_light" />
+    </LinearLayout>
+
     <!-- Chat messages area -->
     <RelativeLayout
         android:layout_width="match_parent"
