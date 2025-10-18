@@ -5,7 +5,7 @@
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".MainActivity7"
+    tools:context=".MainActivity8"
     android:background="@color/white"
     >
 
@@ -31,6 +31,7 @@
             android:orientation="horizontal"
             android:weightSum="8"
             android:gravity="center"
+            android:layout_marginTop="10dp"
             >
 
             <ImageView
@@ -57,23 +58,21 @@
     android:weightSum="12"
     >
             <TextView
-                android:layout_width="0dp"
+                android:id="@+id/username"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_weight="10"
-                android:text="jacob_w"
                 android:textStyle="bold"
-                android:textSize="20sp"
+                android:textSize="17sp"
                 android:layout_gravity="center"
                 android:textColor="@color/button"
 
                 />
 
-    <ImageView
-        android:layout_width="0dp"
-        android:layout_height="match_parent"
-        android:layout_weight="2"
-        android:src="@drawable/chevrondown"
-        />
+<!--    <ImageView-->
+<!--        android:layout_width="wrap_content"-->
+<!--        android:layout_height="match_parent"-->
+<!--        android:src="@drawable/chevrondown"-->
+<!--        />-->
 
 </LinearLayout>
             <View
@@ -91,6 +90,7 @@
                 />
 
         </LinearLayout>
+
         <!--SEARCH BAR-->
         <LinearLayout
             android:id="@+id/searching"
@@ -99,6 +99,7 @@
             android:background="#FAFAFA"
             android:orientation="vertical"
             android:layout_weight="1"
+            android:layout_marginTop="10dp"
             >
 
             <LinearLayout
@@ -107,7 +108,7 @@
                 android:layout_height="wrap_content"
                 android:gravity="center_horizontal"
                 android:weightSum="8"
-                android:layout_marginTop="25dp"
+                android:layout_marginTop="15dp"
 
                 >
                 <LinearLayout
@@ -141,6 +142,7 @@
                         android:layout_marginTop="8dp"
                         android:layout_marginBottom="5dp"
                         android:hint="Search"
+                        android:textColorHint="@color/time"
                         android:layout_weight="4"
                         android:background="@null"
 
@@ -162,6 +164,7 @@
 
     </LinearLayout>
 
+    <!-- REPLACED: Hardcoded chat rows -> RecyclerView -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
@@ -171,522 +174,23 @@
         android:orientation="vertical"
         >
 
-        <LinearLayout
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/recyclerDM"
             android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:orientation="horizontal"
-            android:gravity="center"
-            android:weightSum="6"
-            android:layout_marginBottom="10dp"
-            >
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp" />
 
-            <FrameLayout
-                android:layout_width="0dp"
-                android:layout_height="70dp"
-                android:layout_weight="1"
-                android:gravity="center">
-
-                <!-- Outer circle -->
-                <de.hdodenhof.circleimageview.CircleImageView
-                    android:layout_width="56dp"
-                    android:layout_height="56dp"
-                    android:layout_gravity="center"
-                    android:background="@drawable/story_circle_grey"
-                    android:scaleType="centerCrop" />
-
-                <!-- Inner circle -->
-                <de.hdodenhof.circleimageview.CircleImageView
-                    android:layout_width="49dp"
-                    android:layout_height="49dp"
-                    android:src="@drawable/profile2"
-                    android:layout_gravity="center"
-                    android:scaleType="centerCrop" />
-
-            </FrameLayout>
-
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:orientation="vertical"
-                android:layout_weight="4"
-                android:gravity="center|start"
-                android:paddingStart="12dp"
-                android:weightSum="2"
-                android:layout_marginTop="5dp"
-                >
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="joshua_I"
-                    android:textSize="18sp"
-                    android:textColor="@color/black"
-                    android:layout_marginTop="5dp"
-                    android:id="@+id/upperText"
-                    />
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:orientation="horizontal"
-                    >
-
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:text="Have a nice day,bro!"
-                    android:textSize="14sp"
-                    android:textColor="@color/black"
-                    android:layout_weight="3"
-                    />
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="match_parent"
-                        android:layout_weight="1"
-                        android:text=". now"
-                        android:textSize="14sp"
-                        />
-
-                </LinearLayout>
-            </LinearLayout>
-
-            <ImageView
-            android:layout_width="0dp"
+        <TextView
+            android:id="@+id/empty_dm"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-                android:src="@drawable/camera2"
-             />
-
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:orientation="horizontal"
+            android:text="No chats yet"
             android:gravity="center"
-            android:weightSum="6"
-            android:layout_marginBottom="10dp"
-            >
-
-                <de.hdodenhof.circleimageview.CircleImageView
-                    android:layout_width="0dp"
-                    android:layout_height="49dp"
-                    android:layout_weight="1"
-                    android:scaleType="centerCrop"
-                    android:src="@drawable/random3"
-                    android:layout_gravity="center"
-                    />
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:orientation="vertical"
-                android:layout_weight="4"
-                android:gravity="center|start"
-                android:paddingStart="12dp"
-                android:weightSum="2"
-                android:layout_marginTop="5dp"
-                >
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="karennne"
-                    android:textSize="20sp"
-                    android:textColor="@color/black"
-                    android:layout_marginTop="5dp"
-                    android:id="@+id/upperText2"
-                    />
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:orientation="horizontal"
-                    >
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="match_parent"
-                        android:text="I heard this is a good..."
-                        android:textSize="14sp"
-                        android:textColor="@color/black"
-                        android:layout_weight="3"
-                        />
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="match_parent"
-                        android:layout_weight="1"
-                        android:text=". now"
-                        android:textSize="14sp"
-                        />
-
-                </LinearLayout>
-            </LinearLayout>
-
-            <ImageView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:src="@drawable/camera2"
-                />
-
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:orientation="horizontal"
-            android:gravity="center"
-            android:weightSum="6"
-            android:layout_marginBottom="10dp"
-            >
-
-            <de.hdodenhof.circleimageview.CircleImageView
-                android:layout_width="0dp"
-                android:layout_height="49dp"
-                android:layout_weight="1"
-                android:scaleType="centerCrop"
-                android:src="@drawable/meme"
-                android:layout_gravity="center"
-                />
-
-
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:orientation="vertical"
-                android:layout_weight="4"
-                android:gravity="center|start"
-                android:paddingStart="12dp"
-                android:weightSum="2"
-                android:layout_marginTop="5dp"
-                >
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="martini_rond"
-                    android:textSize="20sp"
-                    android:textColor="@color/black"
-                    android:layout_marginTop="5dp"
-                    android:id="@+id/upperText3"
-                    />
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:orientation="horizontal"
-                    >
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="match_parent"
-                        android:text="See you on the next m..."
-                        android:textSize="14sp"
-                        android:textColor="@color/black"
-                        android:layout_weight="3"
-                        />
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="match_parent"
-                        android:layout_weight="1"
-                        android:text=". 15m"
-                        android:textSize="14sp"
-                        />
-
-                </LinearLayout>
-            </LinearLayout>
-
-            <ImageView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:src="@drawable/camera2"
-                />
-
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:orientation="horizontal"
-            android:gravity="center"
-            android:weightSum="6"
-            android:layout_marginBottom="10dp"
-            >
-
-            <FrameLayout
-                android:layout_width="0dp"
-                android:layout_height="70dp"
-                android:layout_weight="1"
-                android:gravity="center">
-
-                <!-- Outer circle -->
-                <de.hdodenhof.circleimageview.CircleImageView
-                    android:layout_width="56dp"
-                    android:layout_height="56dp"
-                    android:layout_gravity="center"
-                    android:background="@drawable/story_circle_grey"
-                    android:scaleType="centerCrop" />
-
-                <de.hdodenhof.circleimageview.CircleImageView
-                    android:layout_width="49dp"
-                    android:layout_height="49dp"
-                    android:src="@drawable/random7"
-                    android:layout_gravity="center"
-                    android:scaleType="centerCrop" />
-
-            </FrameLayout>
-
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:orientation="vertical"
-                android:layout_weight="4"
-                android:gravity="center|start"
-                android:paddingStart="12dp"
-                android:weightSum="2"
-                android:layout_marginTop="5dp"
-
-                >
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="andrewww_"
-                    android:textSize="20sp"
-                    android:textColor="@color/black"
-                    android:layout_marginTop="5dp"
-                    android:id="@+id/upperText4"
-                    />
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:orientation="horizontal"
-                    >
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="match_parent"
-                        android:text="Sounds good 😂😂😂"
-                        android:textSize="14sp"
-                        android:textColor="@color/black"
-                        android:layout_weight="3"
-                        />
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="match_parent"
-                        android:layout_weight="1"
-                        android:text=". 20m"
-                        android:textSize="14sp"
-                        />
-
-                </LinearLayout>
-            </LinearLayout>
-
-            <ImageView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:src="@drawable/camera2"
-                />
-
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:orientation="horizontal"
-            android:gravity="center"
-            android:weightSum="6"
-            android:layout_marginBottom="10dp"
-            >
-
-            <FrameLayout
-                android:layout_width="0dp"
-                android:layout_height="70dp"
-                android:layout_weight="1"
-                android:gravity="center">
-
-                <!-- Outer circle -->
-                <de.hdodenhof.circleimageview.CircleImageView
-                    android:layout_width="56dp"
-                    android:layout_height="56dp"
-                    android:layout_gravity="center"
-                    android:background="@drawable/story_circle_grey"
-                    android:scaleType="centerCrop" />
-
-                <!-- Inner circle -->
-                <de.hdodenhof.circleimageview.CircleImageView
-                    android:layout_width="49dp"
-                    android:layout_height="49dp"
-                    android:src="@drawable/random5"
-                    android:layout_gravity="center"
-                    android:scaleType="centerCrop" />
-
-            </FrameLayout>
-
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:orientation="vertical"
-                android:layout_weight="4"
-                android:gravity="center|start"
-                android:paddingStart="12dp"
-                android:layout_marginTop="5dp"
-                android:weightSum="2"
-                >
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="kiero_d"
-                    android:textSize="20sp"
-                    android:textColor="@color/black"
-                    android:layout_marginTop="5dp"
-                    android:id="@+id/upperText5"
-                    />
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:orientation="horizontal"
-                    >
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="match_parent"
-                        android:text="The new design looks..."
-                        android:textSize="14sp"
-                        android:textColor="@color/black"
-                        android:layout_weight="3"
-                        />
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="match_parent"
-                        android:layout_weight="1"
-                        android:text=". 1m"
-                        android:textSize="14sp"
-                        />
-
-                </LinearLayout>
-            </LinearLayout>
-
-            <ImageView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:src="@drawable/camera2"
-                />
-
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:orientation="horizontal"
-            android:gravity="center"
-            android:weightSum="6"
-            android:layout_marginBottom="10dp"
-            >
-
-            <FrameLayout
-                android:layout_width="0dp"
-                android:layout_height="70dp"
-                android:layout_weight="1"
-                android:gravity="center">
-
-                <!-- Outer circle -->
-                <de.hdodenhof.circleimageview.CircleImageView
-                    android:layout_width="56dp"
-                    android:layout_height="56dp"
-                    android:layout_gravity="center"
-                    android:background="@drawable/story_circle_grey"
-                    android:scaleType="centerCrop" />
-
-                <!-- Inner circle -->
-                <de.hdodenhof.circleimageview.CircleImageView
-                    android:layout_width="49dp"
-                    android:layout_height="49dp"
-                    android:src="@drawable/random2"
-                    android:layout_gravity="center"
-                    android:scaleType="centerCrop" />
-
-            </FrameLayout>
-
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:orientation="vertical"
-                android:layout_weight="4"
-                android:gravity="center|start"
-                android:paddingStart="12dp"
-                android:layout_marginTop="5dp"
-                android:weightSum="2"
-                >
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="maxjacobson"
-                    android:textSize="20sp"
-                    android:textColor="@color/black"
-                    android:layout_marginTop="5dp"
-                    android:id="@+id/upperText6"
-                    />
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:orientation="horizontal"
-                    >
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="match_parent"
-                        android:text="Thank you,bro!"
-                        android:textSize="14sp"
-                        android:textColor="@color/black"
-                        android:layout_weight="3"
-                        />
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="match_parent"
-                        android:layout_weight="1"
-                        android:text=". 2h"
-                        android:textSize="14sp"
-                        />
-
-                </LinearLayout>
-            </LinearLayout>
-
-            <ImageView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:src="@drawable/camera2"
-                />
-
-        </LinearLayout>
-
+            android:padding="16dp"
+            android:textStyle="bold"
+            android:visibility="gone" />
 
     </LinearLayout>
 
