@@ -2,4 +2,6 @@
     <string name="app_name">23I-0761_23I-0765</string>
     <!-- Content description for images in chat messages -->
     <string name="content_desc_message_image">Message image</string>
+    <!-- Fallback user name when profile name is not available -->
+    <string name="unknown_user">Unknown</string>
 </resources>
