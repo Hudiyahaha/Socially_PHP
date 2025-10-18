@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
+import android.util.Base64
 import android.view.View
 import android.widget.ImageView
 import android.widget.TextView
@@ -18,6 +19,7 @@ import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
+import java.io.FileInputStream
 
 class MainActivity16 : AppCompatActivity() {
 
@@ -173,39 +175,63 @@ class MainActivity16 : AppCompatActivity() {
             return
         }
 
-        // Convert all selected URIs to Base64
-        val imagesMap = HashMap<String, String>()
-        for ((index, uri) in selectedUris.withIndex()) {
-            try {
-                val inputStream = contentResolver.openInputStream(uri)
-                val bytes = inputStream?.readBytes()
-                inputStream?.close()
+        val mediaBase64List = mutableListOf<String>()
+        val mediaTypeList = mutableListOf<String>()
 
-                if (bytes != null) {
-                    val base64String = android.util.Base64.encodeToString(bytes, android.util.Base64.DEFAULT)
-                    imagesMap[index.toString()] = base64String
+        for (uri in selectedUris) {
+            try {
+                val pfd = contentResolver.openFileDescriptor(uri, "r")
+                val fileDescriptor = pfd?.fileDescriptor
+                if (fileDescriptor != null) {
+                    val inputStream = FileInputStream(fileDescriptor)
+                    val bytes = inputStream.readBytes()
+                    inputStream.close()
+                    pfd.close()
+
+                    val base64String = Base64.encodeToString(bytes, Base64.DEFAULT)
+                    mediaBase64List.add(base64String)
+
+                    val mimeType = contentResolver.getType(uri)
+                    if (mimeType != null && mimeType.startsWith("video")) {
+                        mediaTypeList.add("video")
+                    } else {
+                        mediaTypeList.add("image")
+                    }
                 }
+
             } catch (e: Exception) {
                 e.printStackTrace()
             }
         }
 
-        if (imagesMap.isEmpty()) {
-            Toast.makeText(this, "Failed to encode images", Toast.LENGTH_SHORT).show()
+        if (mediaBase64List.isEmpty()) {
+            Toast.makeText(this, "Failed to encode media", Toast.LENGTH_SHORT).show()
             return
         }
 
-        // Prepare post data
-        val dbRef = FirebaseDatabase.getInstance().getReference("Posts").child(uid)
-        val postId = dbRef.push().key ?: System.currentTimeMillis().toString()
+        val postId = FirebaseDatabase.getInstance()
+            .getReference("Posts").child(uid).push().key ?: System.currentTimeMillis().toString()
 
-        val postData = hashMapOf(
-            "images" to imagesMap,
-            "timestamp" to System.currentTimeMillis()
+        val post = Post(
+            postId = postId,
+            userId = uid,
+            mediaBase64List = mediaBase64List,
+            mediaTypeList = mediaTypeList,
+            timestamp = System.currentTimeMillis()
         )
+        val finalMediaType = if (mediaTypeList.contains("video")) "video" else "image"
+        FirebaseDatabase.getInstance()
+            .getReference("Posts").child(uid).child(postId)
+            .setValue(post)
+            .addOnSuccessListener {
+                FirebaseDatabase.getInstance().getReference("Posts").child(uid).child(postId)
+                    .child("mediaType").setValue(finalMediaType)
+            }
 
-        // Upload post
-        dbRef.child(postId).setValue(postData)
+
+
+        FirebaseDatabase.getInstance().getReference("Posts").child(uid).child(postId)
+            .setValue(post)
             .addOnSuccessListener {
                 Toast.makeText(this, "Post uploaded!", Toast.LENGTH_SHORT).show()
                 val intent = Intent(this, MainActivity13::class.java)
@@ -217,6 +243,8 @@ class MainActivity16 : AppCompatActivity() {
                 Toast.makeText(this, "Upload failed: ${e.message}", Toast.LENGTH_LONG).show()
             }
     }
+
+
 
     override fun onRequestPermissionsResult(
         requestCode: Int,

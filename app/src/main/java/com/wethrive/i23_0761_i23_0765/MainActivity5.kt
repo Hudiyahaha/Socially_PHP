@@ -161,7 +161,49 @@ class MainActivity5 : AppCompatActivity() {
             }
         }
 
+      val postRecycler= findViewById<RecyclerView>(R.id.postRecycler)
+        postRecycler.layoutManager = LinearLayoutManager(this, LinearLayoutManager.VERTICAL, false)
+        val postList = mutableListOf<Post>()
+        val postAdapter = FeedPostAdapter(postList)
+        postRecycler.adapter = postAdapter
+        val currentUid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        val postsRef = FirebaseDatabase.getInstance().getReference("Posts")
 
+        followingRef.get().addOnSuccessListener { snapshot ->
+            val followedIds = mutableListOf<String>()
+            for (child in snapshot.children) {
+                followedIds.add(child.key.toString())
+            }
+            followedIds.add(currentUid) // include your own posts
+
+            postList.clear()
+            var completedRequests = 0
+            val totalRequests = followedIds.size
+
+            for (id in followedIds) {
+                postsRef.child(id).get().addOnSuccessListener { postSnapshot ->
+                    if (postSnapshot.exists()) {
+                        for (postNode in postSnapshot.children) {
+                            val post = postNode.getValue(Post::class.java)
+                            if (post != null) {
+                                postList.add(post)
+                            }
+                        }
+                    }
+                    completedRequests++
+                    if (completedRequests == totalRequests) {
+                        postList.sortByDescending { it.timestamp }
+                        postAdapter.notifyDataSetChanged()
+                    }
+                }.addOnFailureListener {
+                    completedRequests++
+                    if (completedRequests == totalRequests) {
+                        postList.sortByDescending { it.timestamp }
+                        postAdapter.notifyDataSetChanged()
+                    }
+                }
+            }
+        }
 
         // Upload image/video story
         addstory.setOnClickListener {
