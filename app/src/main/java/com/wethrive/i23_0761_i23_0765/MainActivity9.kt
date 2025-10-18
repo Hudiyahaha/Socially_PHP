@@ -32,6 +32,12 @@ import android.Manifest
 import android.content.pm.PackageManager
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import android.os.Handler
+import android.os.Looper
+import android.view.View
+import android.widget.LinearLayout
+import androidx.appcompat.app.AlertDialog
+import java.io.File
 
 class MainActivity9 : AppCompatActivity() {
 
@@ -48,7 +54,7 @@ class MainActivity9 : AppCompatActivity() {
     private lateinit var adapter: ChatAdapter
 
     private lateinit var audio: ImageView
-    private lateinit var video:ImageView
+    private lateinit var video: ImageView
     private val messageList = mutableListOf<Message>()
 
     private val currentUserId = FirebaseAuth.getInstance().currentUser!!.uid
@@ -57,26 +63,48 @@ class MainActivity9 : AppCompatActivity() {
 
     private val IMAGE_REQUEST_CODE = 101
 
+    // Call status UI
+    private lateinit var callStatusContainer: LinearLayout
+    private lateinit var callStatusText: TextView
+    private lateinit var callTimerText: TextView
+    private lateinit var callLevelBar: View
+
+    // Timer
+    private var callStartTimeMs: Long = 0L
+    private val timerHandler = Handler(Looper.getMainLooper())
+    private val timerRunnable = object : Runnable {
+        override fun run() {
+            if (isInVoiceCall && callStartTimeMs > 0L) {
+                val elapsed = System.currentTimeMillis() - callStartTimeMs
+                callTimerText.text = formatElapsed(elapsed)
+                timerHandler.postDelayed(this, 1000L)
+            }
+        }
+    }
+
     // Agora voice call state/config
     private var rtcEngine: RtcEngine? = null
     private var isInVoiceCall: Boolean = false
     private val AUDIO_PERMISSION_REQ_CODE = 201
     // TODO: Replace with your real Agora App ID and token. If your project has no App Certificate, token can be null.
     private val agoraAppId: String = "941f2bca958848af98ccea5d2bda5ab5"
-    private val agoraToken: String? = null // or "<Your token>"
+    private val agoraToken: String? = "007eJxTYPATXZ+5gTWJZ7Hx9cOXk+I5ItandhRxVeyw4W5U26G+5LYCg6WJYZpRUnKipamFhYlFYpqlRXJyaqJpilFSSqJpYpJpQvLnjIZARgazilUMjFAI4lsyGBsYRPp6GReamCdHhbiZ5KV7FeaWRqX5moY4GsWbRHoWVOUFGAQXRbhZGJlXhJi45uRG5VUaOJsaMzAAAM4qLpo=" // or "<Your token>"
 
     // Event handler for Agora callbacks
     private val rtcEventHandler = object : IRtcEngineEventHandler() {
         override fun onJoinChannelSuccess(channel: String?, uid: Int, elapsed: Int) {
             Log.d("MainActivity9", "Agora joined channel=$channel uid=$uid")
-            runOnUiThread { Toast.makeText(this@MainActivity9, "Voice call started", Toast.LENGTH_SHORT).show() }
+            runOnUiThread {
+                callStatusText.text = getString(R.string.call_connected)
+                startCallTimer()
+                Toast.makeText(this@MainActivity9, "Voice call started", Toast.LENGTH_SHORT).show()
+            }
         }
         override fun onUserJoined(uid: Int, elapsed: Int) {
             Log.d("MainActivity9", "Remote user joined: $uid")
         }
         override fun onUserOffline(uid: Int, reason: Int) {
             Log.d("MainActivity9", "Remote user offline: $uid reason=$reason")
-            // End the call automatically if the remote user leaves in a 1:1.
             runOnUiThread {
                 if (isInVoiceCall) {
                     leaveVoiceChannel()
@@ -84,10 +112,47 @@ class MainActivity9 : AppCompatActivity() {
                 }
             }
         }
-        override fun onLeaveChannel(stats: RtcStats?) {
-            Log.d("MainActivity9", "Left channel")
+        override fun onError(err: Int) {
+            Log.e("MainActivity9", "Agora onError: $err")
+            runOnUiThread {
+                Toast.makeText(this@MainActivity9, "Agora error: $err", Toast.LENGTH_LONG).show()
+                // If we're stuck connecting, surface the error and stop UI
+                if (isInVoiceCall.not()) {
+                    hideCallStatusUI()
+                }
+            }
+        }
+        override fun onConnectionStateChanged(state: Int, reason: Int) {
+            Log.d("MainActivity9", "Connection state=$state reason=$reason")
+            runOnUiThread {
+                when (state) {
+                    Constants.CONNECTION_STATE_CONNECTING -> callStatusText.text = getString(R.string.call_connecting)
+                    Constants.CONNECTION_STATE_CONNECTED -> callStatusText.text = getString(R.string.call_connected)
+                    Constants.CONNECTION_STATE_RECONNECTING -> callStatusText.text = getString(R.string.call_connecting)
+                    Constants.CONNECTION_STATE_FAILED, Constants.CONNECTION_STATE_DISCONNECTED -> {
+                        if (!isInVoiceCall) hideCallStatusUI()
+                    }
+                }
+            }
+        }
+        // Audio volume callback: reflect mic activity level in the UI
+        override fun onAudioVolumeIndication(
+            speakers: Array<out IRtcEngineEventHandler.AudioVolumeInfo>?,
+            totalVolume: Int
+        ) {
+            val level = (totalVolume.coerceIn(0, 255)) / 255f
+            runOnUiThread {
+                callLevelBar.alpha = 0.2f + 0.8f * level
+                callLevelBar.scaleX = 0.5f + 1.5f * level
+            }
         }
     }
+
+    // Call invite signaling (Firebase)
+    private lateinit var callsRef: DatabaseReference
+    private var callInviteListener: ValueEventListener? = null
+    private var incomingDialog: AlertDialog? = null
+    private var suppressInviteOnJoin: Boolean = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -102,6 +167,7 @@ class MainActivity9 : AppCompatActivity() {
         // Explicitly target the default Realtime Database for this Firebase project
         val dbUrl = "https://i-0761-23i-0765-default-rtdb.firebaseio.com"
         dbRef = FirebaseDatabase.getInstance(dbUrl).getReference("Messages").child(chatId)
+        callsRef = FirebaseDatabase.getInstance(dbUrl).getReference("Calls").child(chatId)
 
         try {
             Log.d("MainActivity9", "Realtime DB url: $dbUrl, root: ${dbRef.root}")
@@ -116,8 +182,14 @@ class MainActivity9 : AppCompatActivity() {
         profileIcon = findViewById(R.id.profile_icon)
         backArrow = findViewById(R.id.back_arrow)
 
-        audio=findViewById(R.id.audio)
-        video=findViewById(R.id.video)
+        audio = findViewById(R.id.audio)
+        video = findViewById(R.id.video)
+
+        // Call status UI
+        callStatusContainer = findViewById(R.id.call_status_container)
+        callStatusText = findViewById(R.id.call_status_text)
+        callTimerText = findViewById(R.id.call_timer_text)
+        callLevelBar = findViewById(R.id.call_level_bar)
 
         intent.getStringExtra("chatName")?.let { if (it.isNotBlank()) profileName.text = it }
 
@@ -145,6 +217,77 @@ class MainActivity9 : AppCompatActivity() {
                 Toast.makeText(this, "Call ended", Toast.LENGTH_SHORT).show()
             }
         }
+
+        // Start listening for incoming call invites
+        attachCallInviteListener()
+    }
+
+    // ============ Call signaling ============
+    private fun attachCallInviteListener() {
+        if (callInviteListener != null) return
+        callInviteListener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                if (!snapshot.exists()) {
+                    // No invite present; ensure dialog is closed
+                    incomingDialog?.dismiss()
+                    incomingDialog = null
+                    return
+                }
+                val status = snapshot.child("status").getValue(String::class.java)
+                val callerId = snapshot.child("callerId").getValue(String::class.java)
+                val calleeId = snapshot.child("calleeId").getValue(String::class.java)
+                // Only show to the intended callee, and do not prompt the caller
+                if (status == "ringing" && calleeId == currentUserId && callerId != currentUserId && !isInVoiceCall) {
+                    if (incomingDialog?.isShowing == true) return
+                    showIncomingCallDialog(callerId ?: "")
+                } else if (status == "ended") {
+                    // Clean up dialog and local state if needed
+                    incomingDialog?.dismiss()
+                    incomingDialog = null
+                    if (isInVoiceCall) {
+                        leaveVoiceChannel()
+                    }
+                }
+            }
+            override fun onCancelled(error: DatabaseError) {
+                Log.e("MainActivity9", "Calls listener cancelled: ${error.toException()}")
+            }
+        }
+        callsRef.addValueEventListener(callInviteListener!!)
+    }
+
+    private fun showIncomingCallDialog(callerId: String) {
+        val builder = AlertDialog.Builder(this)
+            .setTitle(R.string.incoming_call_title)
+            .setMessage(getString(R.string.incoming_call_message))
+            .setCancelable(false)
+            .setPositiveButton(R.string.accept) { dialog, _ ->
+                // Accept: join without sending a new invite
+                suppressInviteOnJoin = true
+                callsRef.child("status").setValue("ongoing")
+                startVoiceCalling()
+                dialog.dismiss()
+                incomingDialog = null
+            }
+            .setNegativeButton(R.string.decline) { dialog, _ ->
+                callsRef.child("status").setValue("ended")
+                dialog.dismiss()
+                incomingDialog = null
+            }
+        incomingDialog = builder.create()
+        incomingDialog?.show()
+    }
+
+    private fun sendCallInvite() {
+        val invite = mapOf(
+            "channel" to chatId,
+            "callerId" to currentUserId,
+            "calleeId" to otherUserId,
+            "status" to "ringing",
+            "timestamp" to System.currentTimeMillis()
+        )
+        callsRef.setValue(invite)
+            .addOnFailureListener { e -> Log.e("MainActivity9", "Failed to write call invite", e) }
     }
 
     // ========================= Message loading/sending =========================
@@ -342,7 +485,7 @@ class MainActivity9 : AppCompatActivity() {
         return Bitmap.createScaledBitmap(src, newW, newH, true)
     }
 
-    // ========================= Agora integration =========================
+    // ========================= Agora integration and UI =========================
     private fun getAgoraPermissions(): Array<String> {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             arrayOf(
@@ -386,8 +529,16 @@ class MainActivity9 : AppCompatActivity() {
             Log.e("MainActivity9", "Agora App ID is not set")
             return
         }
+        // If this device initiated the call via UI, send an invite; if accepting, skip
+        if (!suppressInviteOnJoin) {
+            sendCallInvite()
+        }
+        // Show connecting UI
+        showCallStatusUI(connecting = true)
         initializeAgoraVoiceSDK()
         joinVoiceChannel()
+        // Reset the suppression flag so future manual calls still send invites
+        suppressInviteOnJoin = false
     }
 
     private fun initializeAgoraVoiceSDK() {
@@ -396,14 +547,19 @@ class MainActivity9 : AppCompatActivity() {
                 mContext = applicationContext
                 mAppId = agoraAppId
                 mEventHandler = rtcEventHandler
+                // Write logs to app files dir for troubleshooting
+                mLogConfig = RtcEngineConfig.LogConfig().apply {
+                    filePath = File(filesDir, "agora.log").absolutePath
+                }
             }
             rtcEngine = RtcEngine.create(config)
-            // Voice optimization
             rtcEngine?.setChannelProfile(Constants.CHANNEL_PROFILE_COMMUNICATION)
             rtcEngine?.setClientRole(Constants.CLIENT_ROLE_BROADCASTER)
+            try { rtcEngine?.enableAudioVolumeIndication(200, 3, true) } catch (_: Throwable) {}
         } catch (e: Exception) {
             Log.e("MainActivity9", "Error initializing Agora RTC engine", e)
             Toast.makeText(this, "Failed to init voice engine: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+            hideCallStatusUI()
         }
     }
 
@@ -414,23 +570,25 @@ class MainActivity9 : AppCompatActivity() {
             channelProfile = Constants.CHANNEL_PROFILE_COMMUNICATION
             publishMicrophoneTrack = true
         }
-        // Use chatId as the channel so both users join the same room
-        val channelName = chatId
-        val token = agoraToken
-        val uid = 0 // 0 lets Agora assign a UID
-        val rc = engine.joinChannel(token, channelName, uid, options)
+        val rc = engine.joinChannel(agoraToken, chatId, 0, options)
+        Log.d("MainActivity9", "joinChannel rc=$rc token=${agoraToken != null} appIdSet=${agoraAppId.isNotBlank()} channel=$chatId")
         if (rc == 0) {
             isInVoiceCall = true
-            Log.d("MainActivity9", "joinChannel requested for $channelName")
+            callStatusText.text = getString(R.string.call_connecting)
         } else {
             Toast.makeText(this, "Failed to join channel: $rc", Toast.LENGTH_LONG).show()
             Log.e("MainActivity9", "joinChannel failed rc=$rc")
+            hideCallStatusUI()
         }
     }
 
     private fun leaveVoiceChannel() {
         rtcEngine?.leaveChannel()
         isInVoiceCall = false
+        stopCallTimer()
+        hideCallStatusUI()
+        // Mark ended in signaling so the peer can stop ringing
+        callsRef.child("status").setValue("ended")
     }
 
     private fun cleanupAgoraEngine() {
@@ -443,6 +601,43 @@ class MainActivity9 : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        // Detach listener to avoid leaks
+        callInviteListener?.let { callsRef.removeEventListener(it) }
+        callInviteListener = null
+        incomingDialog?.dismiss()
+        incomingDialog = null
         cleanupAgoraEngine()
+    }
+
+    // ========================= Call UI helpers =========================
+    private fun showCallStatusUI(connecting: Boolean) {
+        callStatusContainer.visibility = View.VISIBLE
+        callStatusText.text = if (connecting) getString(R.string.call_connecting) else getString(R.string.call_connected)
+        callTimerText.text = "00:00"
+        callLevelBar.alpha = 0.2f
+        callLevelBar.scaleX = 0.5f
+    }
+
+    private fun hideCallStatusUI() {
+        callStatusContainer.visibility = View.GONE
+    }
+
+    private fun startCallTimer() {
+        callStartTimeMs = System.currentTimeMillis()
+        timerHandler.removeCallbacksAndMessages(null)
+        timerHandler.post(timerRunnable)
+    }
+
+    private fun stopCallTimer() {
+        callStartTimeMs = 0L
+        timerHandler.removeCallbacksAndMessages(null)
+        callTimerText.text = "00:00"
+    }
+
+    private fun formatElapsed(ms: Long): String {
+        val totalSec = (ms / 1000).toInt()
+        val m = totalSec / 60
+        val s = totalSec % 60
+        return String.format("%02d:%02d", m, s)
     }
 }
