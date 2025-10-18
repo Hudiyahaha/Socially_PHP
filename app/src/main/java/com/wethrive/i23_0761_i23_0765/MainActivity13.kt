@@ -140,11 +140,12 @@ class MainActivity13 : AppCompatActivity() {
 
 
         if (uid != null) {
-            val postsRef = com.google.firebase.database.FirebaseDatabase.getInstance()
+            val postsRef = FirebaseDatabase.getInstance()
                 .getReference("Posts").child(uid)
             val postList = mutableListOf<String>()
             val postIds = mutableListOf<String>()
-            val adapter = PostAdapter(postList, postIds) { postId ->
+            val mediaTypes = mutableListOf<String>()
+            val adapter = PostAdapter(postList, postIds, mediaTypes) { postId ->
                 val intent = Intent(this, ViewPost::class.java)
                 intent.putExtra("uid", uid)
                 intent.putExtra("postId", postId)
@@ -156,13 +157,16 @@ class MainActivity13 : AppCompatActivity() {
                 override fun onDataChange(snapshot: com.google.firebase.database.DataSnapshot) {
                     postList.clear()
                     postIds.clear()
-
+                    mediaTypes.clear()
                     for (postSnapshot in snapshot.children) {
-                        val imagesNode = postSnapshot.child("images")
-                        val firstImage = imagesNode.children.firstOrNull()?.getValue(String::class.java)
-                        if (firstImage != null) {
-                            postList.add(firstImage)
+                        val mediaList = postSnapshot.child("mediaBase64List").children
+                        val firstMedia = mediaList.firstOrNull()?.getValue(String::class.java)
+                        val mediaType = postSnapshot.child("mediaType").getValue(String::class.java) ?: "image"
+
+                        if (firstMedia != null) {
+                            postList.add(firstMedia)
                             postIds.add(postSnapshot.key!!)
+                            mediaTypes.add(mediaType) // ✅ add the correct type
                         }
                     }
                     adapter.notifyDataSetChanged()
