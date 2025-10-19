@@ -5,12 +5,16 @@ import android.util.Base64
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.EditText
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.database.DataSnapshot
+import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.ValueEventListener
 import de.hdodenhof.circleimageview.CircleImageView
 
 class FeedPostAdapter(private val postList: MutableList<Post>) :
@@ -20,9 +24,9 @@ class FeedPostAdapter(private val postList: MutableList<Post>) :
         val postImagesRecycler: RecyclerView = itemView.findViewById(R.id.postImagesRecycler)
         val username: TextView = itemView.findViewById(R.id.username)
         val profileImage: CircleImageView = itemView.findViewById(R.id.profile)
-        val captionText: TextView = itemView.findViewById(R.id.captionText)
         val likeButton: ImageView = itemView.findViewById(R.id.likeButton)
         val likeCount: TextView = itemView.findViewById(R.id.likeCount)
+
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PostViewHolder {
@@ -54,9 +58,6 @@ class FeedPostAdapter(private val postList: MutableList<Post>) :
                 holder.profileImage.setImageBitmap(bitmap)
             }
         }
-
-        // Caption
-        holder.captionText.text = post.caption ?: ""
 
         // --- LIKE LOGIC ---
         val postRef = FirebaseDatabase.getInstance()
@@ -93,6 +94,59 @@ class FeedPostAdapter(private val postList: MutableList<Post>) :
                 }
             }
         }
+        // COMMENTS
+        val commentsRecycler = holder.itemView.findViewById<RecyclerView>(R.id.commentsRecycler)
+        val commentInput = holder.itemView.findViewById<EditText>(R.id.commentInput)
+        val sendComment = holder.itemView.findViewById<ImageView>(R.id.sendComment)
+
+        val commentsRef = FirebaseDatabase.getInstance()
+            .getReference("Posts")
+            .child(post.userId)
+            .child(post.postId)
+            .child("comments")
+
+        val commentList = mutableListOf<Comment>()
+        val commentAdapter = CommentAdapter(commentList)
+        commentsRecycler.layoutManager = LinearLayoutManager(holder.itemView.context)
+        commentsRecycler.adapter = commentAdapter
+
+        commentsRef.addValueEventListener(object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                commentList.clear()
+                for (commentSnap in snapshot.children) {
+                    val comment = commentSnap.getValue(Comment::class.java)
+                    if (comment != null) commentList.add(comment)
+                }
+                commentAdapter.notifyDataSetChanged()
+            }
+
+            override fun onCancelled(error: DatabaseError) {}
+        })
+
+        sendComment.setOnClickListener {
+            val text = commentInput.text.toString().trim()
+            if (text.isNotEmpty()) {
+                val user = FirebaseAuth.getInstance().currentUser
+                val commentId = commentsRef.push().key ?: System.currentTimeMillis().toString()
+                val currentUserId = user?.uid ?: return@setOnClickListener
+
+                val userRef2 = FirebaseDatabase.getInstance().getReference("Users").child(currentUserId)
+                userRef2.child("uname").get().addOnSuccessListener { unameSnap ->
+                    val uname = unameSnap.getValue(String::class.java) ?: "User"
+                    val comment = Comment(
+                        commentId = commentId,
+                        userId = currentUserId,
+                        username = uname,
+                        text = text,
+                        timestamp = System.currentTimeMillis()
+                    )
+                    commentsRef.child(commentId).setValue(comment)
+                    commentInput.text.clear()
+                }
+            }
+        }
+
+
     }
 
     override fun getItemCount(): Int = postList.size

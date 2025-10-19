@@ -218,7 +218,8 @@ class MainActivity16 : AppCompatActivity() {
             mediaBase64List = mediaBase64List,
             mediaTypeList = mediaTypeList,
             timestamp = System.currentTimeMillis(),
-            likes = mutableListOf()
+            likes = mutableListOf(),
+            comments = mutableListOf()
         )
         val postRef = FirebaseDatabase.getInstance()
             .getReference("Posts")
