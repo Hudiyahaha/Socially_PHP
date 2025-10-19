@@ -28,6 +28,10 @@ object NotificationHelper {
     private var attachStartMs: Long = 0L
     @Volatile private var activeChatId: String? = null
 
+    // Screenshot events
+    private var screenshotRootListener: ChildEventListener? = null
+    private val screenshotChatListeners = mutableMapOf<String, ChildEventListener>()
+
     fun setActiveChatId(chatId: String?) {
         activeChatId = chatId
     }
@@ -245,5 +249,103 @@ object NotificationHelper {
             if (!granted) return
         }
         NotificationManagerCompat.from(context).notify(NOTIF_ID_BASE + (chatId.hashCode() and 0x0FFF), notif)
+    }
+
+    fun startScreenshotListeners(context: Context) {
+        val user = FirebaseAuth.getInstance().currentUser ?: return
+        val uid = user.uid
+        ensureChannel(context)
+
+        // Detach previous
+        screenshotRootListener?.let { FirebaseDatabase.getInstance().getReference("Screenshots").removeEventListener(it) }
+        screenshotChatListeners.forEach { (chatId, l) ->
+            FirebaseDatabase.getInstance().getReference("Screenshots").child(chatId).removeEventListener(l)
+        }
+        screenshotChatListeners.clear()
+
+        val root = FirebaseDatabase.getInstance().getReference("Screenshots")
+        val rootListener = object : ChildEventListener {
+            override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) {
+                val chatId = snapshot.key ?: return
+                if (!chatId.contains(uid)) return
+                attachScreenshotChatListener(context, chatId)
+            }
+            override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) {
+                val chatId = snapshot.key ?: return
+                if (!chatId.contains(uid)) return
+                attachScreenshotChatListener(context, chatId)
+            }
+            override fun onChildRemoved(snapshot: DataSnapshot) {
+                val chatId = snapshot.key ?: return
+                screenshotChatListeners.remove(chatId)?.let {
+                    FirebaseDatabase.getInstance().getReference("Screenshots").child(chatId).removeEventListener(it)
+                }
+            }
+            override fun onChildMoved(snapshot: DataSnapshot, previousChildName: String?) {}
+            override fun onCancelled(error: DatabaseError) {}
+        }
+        root.addChildEventListener(rootListener)
+        screenshotRootListener = rootListener
+    }
+
+    private fun attachScreenshotChatListener(context: Context, chatId: String) {
+        if (screenshotChatListeners.containsKey(chatId)) return
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val ref = FirebaseDatabase.getInstance().getReference("Screenshots").child(chatId)
+        val l = object : ChildEventListener {
+            override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) {
+                val map = snapshot.value as? Map<*, *> ?: return
+                val by = map["by"] as? String ?: return
+                val to = map["to"] as? String ?: return
+                val ts = (map["timestamp"] as? Number)?.toLong() ?: 0L
+                val currentUid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+                // Only notify if current user is the recipient
+                if (to != currentUid) return
+                if (activeChatId == chatId) return
+                val key = "shot_" + snapshot.key
+                if (wasNotified(prefs, key)) return
+
+                val otherUid = otherIdFromChat(chatId, currentUid) ?: return
+                FirebaseDatabase.getInstance().getReference("Users").child(otherUid).child("uname").get()
+                    .addOnSuccessListener { unameSnap ->
+                        val uname = unameSnap.getValue(String::class.java) ?: "Someone"
+                        showScreenshotNotification(context, chatId, otherUid, uname)
+                        markNotified(prefs, key)
+                    }
+            }
+            override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) {}
+            override fun onChildRemoved(snapshot: DataSnapshot) {}
+            override fun onChildMoved(snapshot: DataSnapshot, previousChildName: String?) {}
+            override fun onCancelled(error: DatabaseError) {}
+        }
+        ref.addChildEventListener(l)
+        screenshotChatListeners[chatId] = l
+    }
+
+    private fun showScreenshotNotification(context: Context, chatId: String, otherUid: String, otherName: String) {
+        val intent = Intent(context, MainActivity9::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra("receiverId", otherUid)
+            putExtra("chatName", otherName)
+        }
+        val pending = androidx.core.app.TaskStackBuilder.create(context).run {
+            addNextIntentWithParentStack(intent)
+            getPendingIntent(401, android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE)
+        }
+
+        val notif = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle(otherName)
+            .setContentText("$otherName took a screenshot of the chat")
+            .setColor(context.getColor(R.color.button))
+            .setAutoCancel(true)
+            .setContentIntent(pending)
+            .build()
+
+        if (Build.VERSION.SDK_INT >= 33) {
+            val granted = context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            if (!granted) return
+        }
+        NotificationManagerCompat.from(context).notify(NOTIF_ID_BASE + (chatId.hashCode() and 0x0FFF) + 77, notif)
     }
 }

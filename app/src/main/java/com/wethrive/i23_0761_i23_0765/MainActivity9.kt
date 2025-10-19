@@ -33,10 +33,12 @@ import kotlin.math.max
 // Agora imports
 import android.Manifest
 import android.content.pm.PackageManager
+import android.database.ContentObserver
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import android.os.Handler
 import android.os.Looper
+import android.provider.MediaStore
 import android.view.View
 import android.widget.LinearLayout
 import androidx.appcompat.app.AlertDialog
@@ -179,6 +181,11 @@ class MainActivity9 : AppCompatActivity() {
     private var sharePostId: String? = null
     private var sharedPostSentOnce: Boolean = false
 
+    // Screenshot detection
+    private var screenshotObserver: ContentObserver? = null
+    private var lastScreenshotPath: String? = null
+    private var lastScreenshotSentAt: Long = 0L
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main9)
@@ -274,6 +281,16 @@ class MainActivity9 : AppCompatActivity() {
 
         // Start listening for incoming call invites
         attachCallInviteListener()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        registerScreenshotObserver()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        unregisterScreenshotObserver()
     }
 
     // ============ Call signaling ============
@@ -1125,5 +1142,78 @@ class MainActivity9 : AppCompatActivity() {
             }
             .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
             .show()
+    }
+
+    // ========================= Screenshot detection =========================
+    private fun registerScreenshotObserver() {
+        if (screenshotObserver != null) return
+        screenshotObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
+            override fun onChange(selfChange: Boolean) {
+                super.onChange(selfChange)
+                detectScreenshot()
+            }
+        }
+        contentResolver.registerContentObserver(
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            true,
+            screenshotObserver as ContentObserver
+        )
+    }
+
+    private fun unregisterScreenshotObserver() {
+        screenshotObserver?.let { contentResolver.unregisterContentObserver(it) }
+        screenshotObserver = null
+    }
+
+    private fun detectScreenshot() {
+        try {
+            val projection = arrayOf(
+                MediaStore.Images.Media.DATA,
+                MediaStore.Images.Media.DISPLAY_NAME,
+                MediaStore.Images.Media.DATE_ADDED,
+                MediaStore.Images.Media.RELATIVE_PATH
+            )
+            val sort = MediaStore.Images.Media.DATE_ADDED + " DESC"
+            contentResolver.query(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                projection,
+                null,
+                null,
+                sort
+            )?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val path = cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATA))
+                    val name = cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DISPLAY_NAME))
+                    val rel = try { cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Images.Media.RELATIVE_PATH)) } catch (_: Exception) { null }
+                    val isShot = isScreenshotPath(path, name, rel)
+                    if (isShot) {
+                        // Debounce
+                        val now = System.currentTimeMillis()
+                        if (path != lastScreenshotPath || (now - lastScreenshotSentAt) > 2000) {
+                            lastScreenshotPath = path
+                            lastScreenshotSentAt = now
+                            sendScreenshotEvent()
+                        }
+                    }
+                }
+            }
+        } catch (_: Exception) {
+        }
+    }
+
+    private fun isScreenshotPath(path: String?, name: String?, relative: String?): Boolean {
+        val p = (path ?: "") + "|" + (name ?: "") + "|" + (relative ?: "")
+        return p.contains("Screenshots", ignoreCase = true) || p.contains("screenshot", ignoreCase = true)
+    }
+
+    private fun sendScreenshotEvent() {
+        try {
+            val map = hashMapOf(
+                "by" to currentUserId,
+                "to" to otherUserId,
+                "timestamp" to System.currentTimeMillis()
+            )
+            FirebaseDatabase.getInstance().getReference("Screenshots").child(chatId).push().setValue(map)
+        } catch (_: Exception) {}
     }
 }
