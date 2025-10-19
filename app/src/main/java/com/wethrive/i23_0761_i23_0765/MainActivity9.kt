@@ -189,6 +189,9 @@ class MainActivity9 : AppCompatActivity() {
         else
             otherUserId + "_" + currentUserId
 
+        // Let notification helper know which chat is active to suppress duplicate notifications
+        NotificationHelper.setActiveChatId(chatId)
+
         // Read share extras if present
         sharePostOwnerId = intent.getStringExtra("sharePostOwnerId")
         sharePostId = intent.getStringExtra("sharePostId")
@@ -827,6 +830,8 @@ class MainActivity9 : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        // Clear active chat
+        NotificationHelper.setActiveChatId(null)
         callInviteListener?.let { callsRef.removeEventListener(it) }
         callInviteListener = null
         incomingDialog?.dismiss()

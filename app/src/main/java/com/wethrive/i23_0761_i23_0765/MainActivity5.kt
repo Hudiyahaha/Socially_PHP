@@ -265,6 +265,7 @@ class MainActivity5 : AppCompatActivity() {
         NotificationHelper.ensureChannel(this)
         NotificationHelper.maybeRequestPostNotifications(this)
         NotificationHelper.startFollowRequestListener(this)
+        NotificationHelper.startMessageListeners(this)
     }
 
     private fun uploadStoryToFirebase(uri: Uri, mediaType: String) {
