@@ -217,23 +217,23 @@ class MainActivity16 : AppCompatActivity() {
             userId = uid,
             mediaBase64List = mediaBase64List,
             mediaTypeList = mediaTypeList,
-            timestamp = System.currentTimeMillis()
+            timestamp = System.currentTimeMillis(),
+            likes = mutableListOf()
         )
-        val finalMediaType = if (mediaTypeList.contains("video")) "video" else "image"
-        FirebaseDatabase.getInstance()
-            .getReference("Posts").child(uid).child(postId)
-            .setValue(post)
+        val postRef = FirebaseDatabase.getInstance()
+            .getReference("Posts")
+            .child(uid)
+            .child(postId)
+
+// Upload the post just once
+        postRef.setValue(post)
             .addOnSuccessListener {
-                FirebaseDatabase.getInstance().getReference("Posts").child(uid).child(postId)
-                    .child("mediaType").setValue(finalMediaType)
-            }
+                // Detect if it’s an image or video post
+                val finalMediaType = if (post.mediaTypeList.contains("video")) "video" else "image"
+                postRef.child("mediaType").setValue(finalMediaType)
 
-
-
-        FirebaseDatabase.getInstance().getReference("Posts").child(uid).child(postId)
-            .setValue(post)
-            .addOnSuccessListener {
                 Toast.makeText(this, "Post uploaded!", Toast.LENGTH_SHORT).show()
+
                 val intent = Intent(this, MainActivity13::class.java)
                 intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
                 startActivity(intent)

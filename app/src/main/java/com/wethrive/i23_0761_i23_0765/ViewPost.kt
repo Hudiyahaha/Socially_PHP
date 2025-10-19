@@ -6,34 +6,47 @@ import android.util.Base64
 import android.util.Log
 import android.widget.ImageView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.*
 import de.hdodenhof.circleimageview.CircleImageView
 
 class ViewPost : AppCompatActivity() {
+
+    private lateinit var likeButton: ImageView
+    private lateinit var likeCountText: TextView
+    private lateinit var postRef: DatabaseReference
+    private lateinit var currentUid: String
+    private var isLiked = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_view_post)
 
+        likeButton = findViewById(R.id.likeButton)
+        likeCountText = findViewById(R.id.likeCount)
         val recyclerView = findViewById<RecyclerView>(R.id.postImagesRecycler)
-        recyclerView.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+        recyclerView.layoutManager =
+            LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
 
         val uid = intent.getStringExtra("uid")!!
         val postId = intent.getStringExtra("postId")!!
+        currentUid = FirebaseAuth.getInstance().currentUser?.uid ?: return
 
-        val imagesRef = FirebaseDatabase.getInstance()
-            .getReference("Posts").child(uid).child(postId).child("mediaBase64List")
+        postRef = FirebaseDatabase.getInstance()
+            .getReference("Posts").child(uid).child(postId)
 
+        // ---------- Load media ----------
+        val imagesRef = postRef.child("mediaBase64List")
         val imageList = mutableListOf<String>()
         val adapter = ImageAdapter(imageList)
         recyclerView.adapter = adapter
 
-        imagesRef.addValueEventListener(object : com.google.firebase.database.ValueEventListener {
-            override fun onDataChange(snapshot: com.google.firebase.database.DataSnapshot) {
+        imagesRef.addValueEventListener(object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
                 imageList.clear()
                 for (imgSnapshot in snapshot.children) {
                     val base64 = imgSnapshot.getValue(String::class.java)
@@ -42,49 +55,68 @@ class ViewPost : AppCompatActivity() {
                 adapter.notifyDataSetChanged()
             }
 
-            override fun onCancelled(error: com.google.firebase.database.DatabaseError) {}
+            override fun onCancelled(error: DatabaseError) {}
         })
 
-        val profile = findViewById<CircleImageView>(R.id.profile)
+        // ---------- Handle Like Button ----------
+        val likesRef = postRef.child("likes")
+        likesRef.addValueEventListener(object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val likesList = snapshot.children.mapNotNull { it.getValue(String::class.java) }
+                val likeCount = likesList.size
+                likeCountText.text = "$likeCount likes"
 
-        // Load profile picture
-        val uid2 = FirebaseAuth.getInstance().currentUser?.uid
-        if (uid2 != null) {
-            val databaseRef = FirebaseDatabase.getInstance().getReference("Users").child(uid2)
-            databaseRef.child("dp").get()
-                .addOnSuccessListener { snapshot ->
-                    if (snapshot.exists()) {
-                        val imageString = snapshot.getValue(String::class.java)
-                        if (imageString != null) {
-                            val imageBytes = Base64.decode(imageString, Base64.DEFAULT)
-                            val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
-                            profile.setImageBitmap(bitmap)
+                isLiked = likesList.contains(currentUid)
+                likeButton.setImageResource(
+                    if (isLiked) R.drawable.heart_filled else R.drawable.like
+                )
+            }
 
-                        }
-                    }
-                }
-                .addOnFailureListener {
-                    Log.e("Firebase", "Error: ${it.message}")
-                }
+            override fun onCancelled(error: DatabaseError) {}
+        })
+
+        likeButton.setOnClickListener {
+            toggleLike()
         }
-        val name=findViewById<TextView>(R.id.username)
-        val user = FirebaseAuth.getInstance().currentUser
-        if (user != null) {
-            val uid2 = user.uid
-            val ref = FirebaseDatabase.getInstance().getReference("Users").child(uid2)
 
-            ref.get().addOnSuccessListener { snapshot ->
-                if (snapshot.exists()) {
-                    val username = snapshot.child("uname").getValue(String::class.java)
-                    if (username != null) {
-                        name.text = username
-                    } else {
-                        name.text = "Unknown User"
-                    }
-                }
-            }.addOnFailureListener {
-                Log.e("Firebase", "Failed to get username", it)
+        // ---------- Load profile ----------
+        val profile = findViewById<CircleImageView>(R.id.profile)
+        val usernameText = findViewById<TextView>(R.id.username)
+
+        val userRef = FirebaseDatabase.getInstance().getReference("Users").child(uid)
+        userRef.get().addOnSuccessListener { snapshot ->
+            val uname = snapshot.child("uname").getValue(String::class.java) ?: "Unknown"
+            usernameText.text = uname
+
+            val dpBase64 = snapshot.child("dp").getValue(String::class.java)
+            if (!dpBase64.isNullOrEmpty()) {
+                val bytes = Base64.decode(dpBase64, Base64.DEFAULT)
+                val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                profile.setImageBitmap(bitmap)
             }
         }
+    }
+
+    private fun toggleLike() {
+        val likesRef = postRef.child("likes")
+
+        likesRef.runTransaction(object : Transaction.Handler {
+            override fun doTransaction(mutableData: MutableData): Transaction.Result {
+                val currentLikes = mutableData.children.mapNotNull { it.getValue(String::class.java) }.toMutableList()
+                if (currentLikes.contains(currentUid)) {
+                    currentLikes.remove(currentUid)
+                } else {
+                    currentLikes.add(currentUid)
+                }
+                mutableData.value = currentLikes
+                return Transaction.success(mutableData)
+            }
+
+            override fun onComplete(error: DatabaseError?, committed: Boolean, currentData: DataSnapshot?) {
+                if (error != null) {
+                    Toast.makeText(this@ViewPost, "Failed to like post: ${error.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        })
     }
 }

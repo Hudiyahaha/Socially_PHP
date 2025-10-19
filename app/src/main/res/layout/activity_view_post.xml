@@ -82,7 +82,17 @@
         <ImageView
             android:layout_width="24dp"
             android:layout_height="24dp"
-            android:src="@drawable/like" />
+            android:src="@drawable/like"
+            android:id="@+id/likeButton"
+            />
+        <TextView
+            android:id="@+id/likeCount"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="0 likes"
+            android:textColor="@color/black"
+            android:textSize="12sp"
+            android:layout_marginStart="6dp" />
 
         <ImageView
             android:layout_width="24dp"
