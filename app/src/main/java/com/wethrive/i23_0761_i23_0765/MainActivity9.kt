@@ -183,8 +183,11 @@ class MainActivity9 : AppCompatActivity() {
 
     // Screenshot detection
     private var screenshotObserver: ContentObserver? = null
-    private var lastScreenshotPath: String? = null
+    private var lastScreenshotKey: String? = null
     private var lastScreenshotSentAt: Long = 0L
+
+    // Permission request code for media read
+    private val MEDIA_READ_REQ = 501
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -633,6 +636,13 @@ class MainActivity9 : AppCompatActivity() {
             } else {
                 Toast.makeText(this, "Camera and microphone permissions are required for video calls", Toast.LENGTH_LONG).show()
             }
+        } else if (requestCode == MEDIA_READ_REQ) {
+            if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
+                // Permission granted, re-register observer
+                unregisterScreenshotObserver()
+                registerScreenshotObserver()
+            }
+            return
         }
     }
 
@@ -1145,12 +1155,31 @@ class MainActivity9 : AppCompatActivity() {
     }
 
     // ========================= Screenshot detection =========================
+    private fun hasMediaReadPermission(): Boolean {
+        return if (Build.VERSION.SDK_INT >= 33) {
+            ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED
+        } else {
+            ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+        }
+    }
+
+    private fun requestMediaReadPermissionIfNeeded() {
+        if (hasMediaReadPermission()) return
+        if (Build.VERSION.SDK_INT >= 33) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.READ_MEDIA_IMAGES), MEDIA_READ_REQ)
+        } else {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE), MEDIA_READ_REQ)
+        }
+    }
+
     private fun registerScreenshotObserver() {
+        requestMediaReadPermissionIfNeeded()
+        if (!hasMediaReadPermission()) return
         if (screenshotObserver != null) return
         screenshotObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
-            override fun onChange(selfChange: Boolean) {
-                super.onChange(selfChange)
-                detectScreenshot()
+            override fun onChange(selfChange: Boolean, uri: Uri?) {
+                super.onChange(selfChange, uri)
+                detectScreenshot(uri)
             }
         }
         contentResolver.registerContentObserver(
@@ -1165,45 +1194,40 @@ class MainActivity9 : AppCompatActivity() {
         screenshotObserver = null
     }
 
-    private fun detectScreenshot() {
+    private fun detectScreenshot(changedUri: Uri?) {
         try {
+            val uri = changedUri ?: MediaStore.Images.Media.EXTERNAL_CONTENT_URI
             val projection = arrayOf(
-                MediaStore.Images.Media.DATA,
                 MediaStore.Images.Media.DISPLAY_NAME,
-                MediaStore.Images.Media.DATE_ADDED,
-                MediaStore.Images.Media.RELATIVE_PATH
+                MediaStore.Images.Media.RELATIVE_PATH,
+                MediaStore.Images.Media.DATE_ADDED
             )
             val sort = MediaStore.Images.Media.DATE_ADDED + " DESC"
-            contentResolver.query(
-                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                projection,
-                null,
-                null,
-                sort
-            )?.use { cursor ->
-                if (cursor.moveToFirst()) {
-                    val path = cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATA))
-                    val name = cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DISPLAY_NAME))
-                    val rel = try { cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Images.Media.RELATIVE_PATH)) } catch (_: Exception) { null }
-                    val isShot = isScreenshotPath(path, name, rel)
-                    if (isShot) {
-                        // Debounce
-                        val now = System.currentTimeMillis()
-                        if (path != lastScreenshotPath || (now - lastScreenshotSentAt) > 2000) {
-                            lastScreenshotPath = path
-                            lastScreenshotSentAt = now
-                            sendScreenshotEvent()
-                        }
+            // If we have a specific item URI, query that; else fallback to latest
+            val cursor = if (changedUri != null) {
+                contentResolver.query(uri, projection, null, null, null)
+            } else {
+                contentResolver.query(uri, projection, null, null, sort)
+            }
+            cursor?.use { c ->
+                if (!c.moveToFirst()) return
+                val name = c.getString(c.getColumnIndexOrThrow(MediaStore.Images.Media.DISPLAY_NAME)) ?: ""
+                val rel = try { c.getString(c.getColumnIndexOrThrow(MediaStore.Images.Media.RELATIVE_PATH)) } catch (_: Exception) { null } ?: ""
+                val descriptor = (name + "|" + rel).lowercase()
+                val isShot = descriptor.contains("screenshot") || rel.contains("Screenshots", ignoreCase = true)
+                if (isShot) {
+                    val now = System.currentTimeMillis()
+                    val key = name + "|" + rel
+                    if (key != lastScreenshotKey || (now - lastScreenshotSentAt) > 2000) {
+                        lastScreenshotKey = key
+                        lastScreenshotSentAt = now
+                        sendScreenshotEvent()
                     }
                 }
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.w("MainActivity9", "detectScreenshot failed: ${e.localizedMessage}")
         }
-    }
-
-    private fun isScreenshotPath(path: String?, name: String?, relative: String?): Boolean {
-        val p = (path ?: "") + "|" + (name ?: "") + "|" + (relative ?: "")
-        return p.contains("Screenshots", ignoreCase = true) || p.contains("screenshot", ignoreCase = true)
     }
 
     private fun sendScreenshotEvent() {
