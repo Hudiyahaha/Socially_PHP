@@ -17,6 +17,14 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.ValueEventListener
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.content.Context
+import android.content.Intent
+import android.graphics.Color
+import android.os.Build
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 
 class profile : AppCompatActivity() {
     private var targetId: String? = null
@@ -28,6 +36,9 @@ class profile : AppCompatActivity() {
     private lateinit var name: TextView
     private lateinit var follow: MaterialButton
     private lateinit var profile_bottom: CircleImageView
+
+    private val NOTIF_CHANNEL_ID = "follow_req_channel"
+    private val NOTIF_ID_BASE = 2000
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -175,7 +186,80 @@ class profile : AppCompatActivity() {
             return
         }
 
+        // Create notification channel once
+        createFollowRequestChannel()
+        // Attach in-app listener for current user's incoming follow requests
+        attachFollowRequestListener(current)
+
         loadUserProfile(targetId!!,current)
+    }
+
+    private fun attachFollowRequestListener(currentUserId: String) {
+        val reqRef = FirebaseDatabase.getInstance().getReference("Requests").child(currentUserId)
+        // Listen for children added under Requests/currentUserId
+        reqRef.addValueEventListener(object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                // Show a notification per requester (basic approach)
+                for (child in snapshot.children) {
+                    val requesterId = child.key ?: continue
+                    // Lookup requester username
+                    FirebaseDatabase.getInstance().getReference("Users").child(requesterId).child("uname").get()
+                        .addOnSuccessListener { unameSnap ->
+                            val uname = unameSnap.getValue(String::class.java) ?: "Someone"
+                            showFollowRequestNotification(uname)
+                        }
+                }
+            }
+            override fun onCancelled(error: DatabaseError) {}
+        })
+    }
+
+    private fun createFollowRequestChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val name = "Follow Requests"
+            val desc = "Notifications for new follow requests"
+            val importance = NotificationManager.IMPORTANCE_DEFAULT
+            val channel = NotificationChannel(NOTIF_CHANNEL_ID, name, importance).apply {
+                description = desc
+                enableLights(true)
+                lightColor = Color.CYAN
+                enableVibration(true)
+            }
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            nm.createNotificationChannel(channel)
+        }
+    }
+
+    private fun showFollowRequestNotification(requesterName: String) {
+        // Pending intent to open MainActivity12
+        val intent = Intent(this, MainActivity12::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra("source", "follow_request")
+        }
+        val pending = androidx.core.app.TaskStackBuilder.create(this).run {
+            addNextIntentWithParentStack(intent)
+            getPendingIntent(101, android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE)
+        }
+
+        val notif = NotificationCompat.Builder(this, NOTIF_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle("New follow request")
+            .setContentText("$requesterName requested to follow you")
+            .setColor(getColor(R.color.button))
+            .setAutoCancel(true)
+            .setContentIntent(pending)
+            .build()
+
+        val nm = NotificationManagerCompat.from(this)
+        // On Android 13+ ensure POST_NOTIFICATIONS permission is granted
+        if (Build.VERSION.SDK_INT >= 33) {
+            val granted = checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            if (!granted) {
+                // Don't crash; you can optionally request permission elsewhere
+                return
+            }
+        }
+        nm.notify(NOTIF_ID_BASE + (requesterName.hashCode() and 0x0FFF), notif)
     }
 
     private fun loadUserProfile(target: String, current: String) {

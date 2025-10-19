@@ -83,7 +83,8 @@
             android:exported="false" />
         <activity
             android:name=".MainActivity12"
-            android:exported="false" />
+            android:exported="false"
+            />
         <activity
             android:name=".MainActivity11"
             android:exported="false" />

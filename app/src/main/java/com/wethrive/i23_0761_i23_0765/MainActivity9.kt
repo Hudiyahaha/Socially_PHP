@@ -41,6 +41,7 @@ import android.view.View
 import android.widget.LinearLayout
 import androidx.appcompat.app.AlertDialog
 import java.io.File
+import android.text.InputType
 
 class MainActivity9 : AppCompatActivity() {
 
@@ -101,7 +102,7 @@ class MainActivity9 : AppCompatActivity() {
     private val AUDIO_PERMISSION_REQ_CODE = 201
     private val VIDEO_PERMISSION_REQ_CODE = 202
     private val agoraAppId: String = "941f2bca958848af98ccea5d2bda5ab5"
-    private val agoraToken: String? = "007eJxTYDAq7D736eKJeoWtfOGMycHBmq0nufatWT1P+ViVkvDOLeYKDJYmhmlGScmJlqYWFiYWiWmWFsnJqYmmKUZJKYmmiUmmP1d+z2gIZGRo9P7OwAiFIL4lQ1JFZbBbiUuEWVCQiX+6T0qkQUGGV3GSQbFboWF8emp6rkmuZ0ZxZlqASU6ob5FfprtXaHGVuZO5MQMDACOCMqg="
+    private val agoraToken: String? = "007eJxTYJguOWWbVajq8kS9OsfdxhnShwy9xUM1P7ZNL9uudzT43R4FBksTwzSjpORES1MLCxOLxDRLi+Tk1ETTFKOklETTxCTT7POsmQ2BjAztp6xYGRkgEMS3ZEiqqAx2K3GJMAsKMvFP90mJNCjI8CpOMih2KzSMT09NzzXJ9cwozkwLMMkJ9S3yy3T3Ci2uMncyN2ZgAAAufjB0"
 
     // Event handler for Agora callbacks
     private val rtcEventHandler = object : IRtcEngineEventHandler() {
@@ -173,6 +174,11 @@ class MainActivity9 : AppCompatActivity() {
     private var suppressInviteOnJoin: Boolean = false
     private var pendingCallType: String = "audio" // "audio" or "video"
 
+    // Share extras handling for post sharing
+    private var sharePostOwnerId: String? = null
+    private var sharePostId: String? = null
+    private var sharedPostSentOnce: Boolean = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main9)
@@ -182,6 +188,10 @@ class MainActivity9 : AppCompatActivity() {
             currentUserId + "_" + otherUserId
         else
             otherUserId + "_" + currentUserId
+
+        // Read share extras if present
+        sharePostOwnerId = intent.getStringExtra("sharePostOwnerId")
+        sharePostId = intent.getStringExtra("sharePostId")
 
         // Explicitly target the default Realtime Database for this Firebase project
         val dbUrl = "https://i-0761-23i-0765-default-rtdb.firebaseio.com"
@@ -214,7 +224,9 @@ class MainActivity9 : AppCompatActivity() {
 
         backArrow.setOnClickListener { finish() }
 
-        adapter = ChatAdapter(messageList, currentUserId)
+        adapter = ChatAdapter(messageList, currentUserId) { message ->
+            handleMessageLongPress(message)
+        }
         recyclerChat.layoutManager = LinearLayoutManager(this)
         recyclerChat.adapter = adapter
 
@@ -223,6 +235,9 @@ class MainActivity9 : AppCompatActivity() {
 
         btnSend.setOnClickListener { sendMessage() }
         btnAttach.setOnClickListener { pickImage() }
+
+        // If a post was shared from the feed, send it once upon entering this chat
+        maybeSendSharedPost()
 
         // Start/end voice call when audio icon is tapped
         audio.setOnClickListener {
@@ -1006,5 +1021,104 @@ class MainActivity9 : AppCompatActivity() {
         val m = totalSec / 60
         val s = totalSec % 60
         return String.format(java.util.Locale.getDefault(), "%02d:%02d", m, s)
+    }
+
+    // Share extras handling for post sharing
+    private fun maybeSendSharedPost() {
+        if (sharedPostSentOnce) return
+        val owner = sharePostOwnerId
+        val pid = sharePostId
+        if (!owner.isNullOrBlank() && !pid.isNullOrBlank()) {
+            val messageId = dbRef.push().key!!
+            val message = Message(
+                messageId = messageId,
+                senderId = currentUserId,
+                receiverId = otherUserId,
+                text = "Shared a post",
+                postId = "${owner}:${pid}",
+                timestamp = System.currentTimeMillis()
+            )
+            dbRef.child(messageId)
+                .setValue(message)
+                .addOnSuccessListener {
+                    sharedPostSentOnce = true
+                    Toast.makeText(this, "Post shared", Toast.LENGTH_SHORT).show()
+                }
+                .addOnFailureListener { e ->
+                    Log.e("MainActivity9", "Failed to share post: ${e.localizedMessage}")
+                }
+        }
+    }
+
+    private fun handleMessageLongPress(message: Message) {
+        // Only allow edit/delete for messages sent by current user within 5 minutes and not already deleted
+        val isOwn = message.senderId == currentUserId
+        val withinWindow = System.currentTimeMillis() - (message.timestamp) <= 5 * 60 * 1000
+        if (!isOwn || !withinWindow || message.deleted == true) return
+
+        val options = arrayOf("Edit", "Delete")
+        AlertDialog.Builder(this)
+            .setTitle("Message options")
+            .setItems(options) { dialog, which ->
+                when (which) {
+                    0 -> promptEditMessage(message)
+                    1 -> confirmDeleteMessage(message)
+                }
+                dialog.dismiss()
+            }
+            .show()
+    }
+
+    private fun promptEditMessage(message: Message) {
+        // Only support editing plain text messages (not images or shared posts)
+        if (!message.imageBase64.isNullOrBlank() || !message.imageUrl.isNullOrBlank() || !message.postId.isNullOrBlank()) {
+            Toast.makeText(this, "Only text messages can be edited", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val input = EditText(this).apply {
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+            setText(message.text ?: "")
+            setSelection(text?.length ?: 0)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Edit message")
+            .setView(input)
+            .setPositiveButton("Save") { d, _ ->
+                val newText = input.text.toString().trim()
+                if (newText.isEmpty()) {
+                    Toast.makeText(this, "Message cannot be empty", Toast.LENGTH_SHORT).show()
+                } else {
+                    val id = message.messageId ?: return@setPositiveButton
+                    val updates = mapOf(
+                        "text" to newText,
+                        "edited" to true
+                    )
+                    dbRef.child(id).updateChildren(updates)
+                }
+                d.dismiss()
+            }
+            .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
+            .show()
+    }
+
+    private fun confirmDeleteMessage(message: Message) {
+        AlertDialog.Builder(this)
+            .setTitle("Delete message")
+            .setMessage("Are you sure you want to delete this message?")
+            .setPositiveButton("Delete") { d, _ ->
+                val id = message.messageId ?: return@setPositiveButton
+                // Soft delete: mark as deleted and clear content fields
+                val updates = hashMapOf<String, Any>(
+                    "deleted" to true
+                )
+                message.text?.let { if (it.isNotBlank()) updates["text"] = "" }
+                message.imageBase64?.let { if (it.isNotBlank()) updates["imageBase64"] = "" }
+                message.imageUrl?.let { if (it.isNotBlank()) updates["imageUrl"] = "" }
+                message.postId?.let { if (it.isNotBlank()) updates["postId"] = "" }
+                dbRef.child(id).updateChildren(updates)
+                d.dismiss()
+            }
+            .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
+            .show()
     }
 }

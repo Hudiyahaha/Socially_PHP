@@ -1,5 +1,6 @@
 package com.wethrive.i23_0761_i23_0765
 
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.Base64
@@ -18,7 +19,8 @@ import java.util.Locale
 
 class ChatAdapter(
     private val messages: MutableList<Message>,
-    private val currentUserId: String
+    private val currentUserId: String,
+    private val onMessageLongPress: (Message) -> Unit = {}
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     private companion object {
@@ -72,37 +74,78 @@ class ChatAdapter(
         private val imageMessage: ImageView = itemView.findViewById(R.id.imageMessage)
 
         fun bind(m: Message) {
-            // Text binding
-            val text = when {
-                m.deleted -> "Message deleted"
-                !m.text.isNullOrBlank() -> m.text!!.trim()
-                else -> ""
+            // Long-press support
+            val longPressListener = View.OnLongClickListener {
+                onMessageLongPress(m)
+                true
             }
-            if (text.isNotEmpty()) {
+            itemView.setOnLongClickListener(longPressListener)
+            tvMessage.setOnLongClickListener(longPressListener)
+            imageMessage.setOnLongClickListener(longPressListener)
+
+            // Deleted takes precedence over any content
+            if (m.deleted) {
                 tvMessage.visibility = View.VISIBLE
-                tvMessage.text = text
-            } else {
-                tvMessage.visibility = View.GONE
-                tvMessage.text = ""
+                tvMessage.text = "Message deleted"
+                tvMessage.isClickable = false
+                tvMessage.setOnClickListener(null)
+                imageMessage.visibility = View.GONE
+                imageMessage.setImageDrawable(null)
+                tvTime.text = formatTime(m.timestamp)
+                return
             }
 
-            // Image binding: prefer URL, else Base64
-            val url = m.imageUrl
-            val b64 = m.imageBase64
-            when {
-                !url.isNullOrBlank() -> {
-                    imageMessage.visibility = View.VISIBLE
-                    imageMessage.contentDescription = "Image message"
-                    SimpleImageLoader.load(url, imageMessage)
+            // Shared post rendering
+            val sharedPost = m.postId?.takeIf { it.isNotBlank() }
+            if (sharedPost != null) {
+                tvMessage.visibility = View.VISIBLE
+                tvMessage.text = "View shared post"
+                tvMessage.isClickable = true
+                tvMessage.setOnClickListener {
+                    val parts = sharedPost.split(":", limit = 2)
+                    if (parts.size == 2) {
+                        val i = Intent(itemView.context, ViewPost::class.java)
+                        i.putExtra("uid", parts[0])
+                        i.putExtra("postId", parts[1])
+                        itemView.context.startActivity(i)
+                    }
                 }
-                !b64.isNullOrBlank() -> {
-                    imageMessage.visibility = View.VISIBLE
-                    imageMessage.contentDescription = "Image message"
-                    SimpleImageLoader.loadBase64(b64, imageMessage)
+                imageMessage.visibility = View.GONE
+                imageMessage.setImageDrawable(null)
+            } else {
+                // Text message
+                val baseText = (m.text ?: "").trim()
+                if (baseText.isNotEmpty()) {
+                    val editedMark = if (m.edited) " (edited)" else ""
+                    tvMessage.visibility = View.VISIBLE
+                    tvMessage.text = baseText + editedMark
+                    tvMessage.setOnClickListener(null)
+                    tvMessage.isClickable = false
+                } else {
+                    tvMessage.visibility = View.GONE
+                    tvMessage.text = ""
+                    tvMessage.setOnClickListener(null)
+                    tvMessage.isClickable = false
                 }
-                else -> {
-                    imageMessage.visibility = View.GONE
-                    imageMessage.setImageDrawable(null)
+
+                // Image message
+                val url = m.imageUrl
+                val b64 = m.imageBase64
+                when {
+                    !url.isNullOrBlank() -> {
+                        imageMessage.visibility = View.VISIBLE
+                        imageMessage.contentDescription = "Image message"
+                        SimpleImageLoader.load(url, imageMessage)
+                    }
+                    !b64.isNullOrBlank() -> {
+                        imageMessage.visibility = View.VISIBLE
+                        imageMessage.contentDescription = "Image message"
+                        SimpleImageLoader.loadBase64(b64, imageMessage)
+                    }
+                    else -> {
+                        imageMessage.visibility = View.GONE
+                        imageMessage.setImageDrawable(null)
+                    }
                 }
             }
 

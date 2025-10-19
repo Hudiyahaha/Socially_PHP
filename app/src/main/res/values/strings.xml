@@ -15,4 +15,9 @@
     <string name="incoming_call_message">Do you want to accept this call?</string>
     <string name="accept">Accept</string>
     <string name="decline">Decline</string>
+    <!-- DM share post -->
+    <string name="view_shared_post">View shared post</string>
+    <string name="guest">Guest</string>
+    <string name="unknown">Unknown</string>
+    <string name="like_count">%1$d likes</string>
 </resources>

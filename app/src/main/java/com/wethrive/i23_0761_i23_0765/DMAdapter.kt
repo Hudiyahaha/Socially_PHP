@@ -15,6 +15,10 @@ data class DMItem(val id: String, val name: String, val lastMessage: String, val
 
 class DMAdapter(private val items: MutableList<DMItem>) : RecyclerView.Adapter<DMAdapter.DMViewHolder>() {
 
+    // Optional extras used to share a post into a chat
+    var sharePostOwnerId: String? = null
+    var sharePostId: String? = null
+
     class DMViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         val avatar: CircleImageView = itemView.findViewById(R.id.imgAvatar)
         val name: TextView = itemView.findViewById(R.id.txtName)
@@ -52,13 +56,19 @@ class DMAdapter(private val items: MutableList<DMItem>) : RecyclerView.Adapter<D
             val i = Intent(ctx, MainActivity9::class.java)
             i.putExtra("receiverId", item.id)
             i.putExtra("chatName", item.name)
+            // Forward share extras if present
+            sharePostOwnerId?.let { i.putExtra("sharePostOwnerId", it) }
+            sharePostId?.let { i.putExtra("sharePostId", it) }
             ctx.startActivity(i)
         }
     }
 
     override fun getItemCount(): Int = items.size
 
-    fun submitList(newItems: List<DMItem>) {
+    fun submitList(newItems: List<DMItem>, shareOwnerId: String? = null, shareId: String? = null) {
+        // Update optional share extras for this adapter instance
+        this.sharePostOwnerId = shareOwnerId
+        this.sharePostId = shareId
         items.clear()
         items.addAll(newItems)
         notifyDataSetChanged()

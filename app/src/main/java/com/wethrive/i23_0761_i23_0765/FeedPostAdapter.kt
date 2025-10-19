@@ -1,5 +1,6 @@
 package com.wethrive.i23_0761_i23_0765
 
+import android.content.Intent
 import android.graphics.BitmapFactory
 import android.util.Base64
 import android.view.LayoutInflater
@@ -26,6 +27,8 @@ class FeedPostAdapter(private val postList: MutableList<Post>) :
         val profileImage: CircleImageView = itemView.findViewById(R.id.profile)
         val likeButton: ImageView = itemView.findViewById(R.id.likeButton)
         val likeCount: TextView = itemView.findViewById(R.id.likeCount)
+        // Share button for DM share flow
+        val sharePost: ImageView = itemView.findViewById(R.id.sharePost)
 
     }
 
@@ -48,10 +51,10 @@ class FeedPostAdapter(private val postList: MutableList<Post>) :
         // Load username and profile pic
         val userRef = FirebaseDatabase.getInstance().getReference("Users").child(post.userId)
         userRef.child("uname").get().addOnSuccessListener {
-            holder.username.text = it.getValue(String::class.java) ?: "Unknown"
+            holder.username.text = it.getValue(String::class.java) ?: holder.itemView.context.getString(R.string.unknown_user)
         }
-        userRef.child("dp").get().addOnSuccessListener { snapshot ->
-            val base64 = snapshot.getValue(String::class.java)
+        userRef.child("dp").get().addOnSuccessListener { snap ->
+            val base64 = snap.getValue(String::class.java)
             if (!base64.isNullOrEmpty()) {
                 val bytes = Base64.decode(base64, Base64.DEFAULT)
                 val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
@@ -67,18 +70,18 @@ class FeedPostAdapter(private val postList: MutableList<Post>) :
             .child("likes")
 
         // Update like button & count UI
-        val likes = post.likes ?: mutableListOf()
+        val likes = post.likes
         val isLiked = likes.contains(currentUid)
         holder.likeButton.setImageResource(
             if (isLiked) R.drawable.heart_filled else R.drawable.like
         )
-        holder.likeCount.text = "${likes.size} likes"
+        holder.likeCount.text = holder.itemView.context.getString(R.string.like_count, likes.size)
 
         // Like button click
         holder.likeButton.setOnClickListener {
             if (isLiked) {
                 // Unlike post
-                postRef.get().addOnSuccessListener { snapshot ->
+                postRef.get().addOnSuccessListener {
                     val updatedLikes = likes.toMutableList().apply { remove(currentUid) }
                     postRef.setValue(updatedLikes)
                     post.likes = updatedLikes
@@ -86,7 +89,7 @@ class FeedPostAdapter(private val postList: MutableList<Post>) :
                 }
             } else {
                 // Like post
-                postRef.get().addOnSuccessListener { snapshot ->
+                postRef.get().addOnSuccessListener {
                     val updatedLikes = likes.toMutableList().apply { add(currentUid) }
                     postRef.setValue(updatedLikes)
                     post.likes = updatedLikes
@@ -144,6 +147,16 @@ class FeedPostAdapter(private val postList: MutableList<Post>) :
                     commentInput.text.clear()
                 }
             }
+        }
+
+        // --- SHARE POST IN DM FLOW ---
+        holder.sharePost.setOnClickListener {
+            val ctx = holder.itemView.context
+            val intent = Intent(ctx, MainActivity8::class.java).apply {
+                putExtra("sharePostOwnerId", post.userId)
+                putExtra("sharePostId", post.postId)
+            }
+            ctx.startActivity(intent)
         }
 
 

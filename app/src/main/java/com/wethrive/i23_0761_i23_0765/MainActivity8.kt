@@ -26,23 +26,31 @@ class MainActivity8 : AppCompatActivity() {
         val currentUser = FirebaseAuth.getInstance().currentUser
         val currentUid = currentUser?.uid
         if (currentUid == null) {
-            titleUsername.text = "Guest"
+            titleUsername.setText(R.string.guest)
         } else {
             val ref = FirebaseDatabase.getInstance().getReference("Users").child(currentUid).child("uname")
             ref.get().addOnSuccessListener { snapshot ->
-                val uname = snapshot.getValue(String::class.java) ?: "Unknown"
+                val uname = snapshot.getValue(String::class.java) ?: getString(R.string.unknown)
                 titleUsername.text = uname
             }.addOnFailureListener {
-                titleUsername.text = "Unknown"
+                titleUsername.setText(R.string.unknown)
                 Toast.makeText(this, "Failed to load username", Toast.LENGTH_SHORT).show()
             }
         }
+
+        // Read share extras if this screen was opened from the feed share button
+        val shareOwnerId = intent.getStringExtra("sharePostOwnerId")
+        val shareId = intent.getStringExtra("sharePostId")
 
         // RecyclerView for DM chats
         val recycler = findViewById<RecyclerView>(R.id.recyclerDM)
         val emptyView = findViewById<TextView>(R.id.empty_dm)
 
         val adapter = DMAdapter(mutableListOf())
+        // Inject share extras into adapter so they are forwarded on row tap
+        adapter.sharePostOwnerId = shareOwnerId
+        adapter.sharePostId = shareId
+
         recycler.layoutManager = LinearLayoutManager(this)
         recycler.adapter = adapter
         recycler.setHasFixedSize(true)
@@ -59,12 +67,13 @@ class MainActivity8 : AppCompatActivity() {
                     val uid = child.key ?: continue
                     if (uid == currentUid) continue
 
-                    val uname = child.child("uname").getValue(String::class.java) ?: "Unknown"
+                    val uname = child.child("uname").getValue(String::class.java) ?: getString(R.string.unknown)
                     val dp = child.child("dp").getValue(String::class.java) ?: ""
                     // lastMessage and time are not available here; leave blank for now
                     list.add(DMItem(id = uid, name = uname, lastMessage = "", time = "", dp = if (dp.isBlank()) null else dp))
                 }
-                adapter.submitList(list)
+                // Provide share extras when submitting list as well (for any callers using submitList signature)
+                adapter.submitList(list, shareOwnerId, shareId)
                 emptyView.visibility = if (list.isEmpty()) android.view.View.VISIBLE else android.view.View.GONE
             }.addOnFailureListener { e ->
                 Toast.makeText(this, "Failed to load users: ${e.message}", Toast.LENGTH_SHORT).show()
