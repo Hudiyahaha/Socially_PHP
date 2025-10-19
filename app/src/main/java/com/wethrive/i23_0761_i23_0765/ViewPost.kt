@@ -4,6 +4,7 @@ import android.graphics.BitmapFactory
 import android.os.Bundle
 import android.util.Base64
 import android.util.Log
+import android.widget.EditText
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
@@ -25,6 +26,7 @@ class ViewPost : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_view_post)
+
 
         likeButton = findViewById(R.id.likeButton)
         likeCountText = findViewById(R.id.likeCount)
@@ -57,6 +59,55 @@ class ViewPost : AppCompatActivity() {
 
             override fun onCancelled(error: DatabaseError) {}
         })
+      //Comments
+        val commentsRef = postRef.child("comments")
+        val commentsList = mutableListOf<Comment>()
+        val commentRecycler=findViewById<RecyclerView>(R.id.commentsRecycler)
+        val commentInput=findViewById<EditText>(R.id.commentInput)
+        val sendComment=findViewById<ImageView>(R.id.sendComment)
+        val commentsAdapter = CommentAdapter(commentsList)
+        commentRecycler.layoutManager= LinearLayoutManager(this)
+        commentRecycler.adapter=commentsAdapter
+
+        commentsRef.addValueEventListener(object: ValueEventListener{
+            override fun onDataChange(snapshot: DataSnapshot) {
+               commentsList.clear()
+                for(commentSnap in snapshot.children){
+                    val comment=commentSnap.getValue(Comment::class.java)
+                    if(comment!=null) {
+                       commentsList.add(comment)
+                    }
+                    commentsAdapter.notifyDataSetChanged()
+                }
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                Log.e("ViewPost", "Failed to load comments: ${error.message}")
+            }
+        })
+
+        sendComment.setOnClickListener {
+            val text=commentInput.text.toString()
+            if(text.isNotEmpty()) {
+                val user = FirebaseAuth.getInstance().currentUser
+                val currentUserId = user?.uid ?: return@setOnClickListener
+                val commentId = commentsRef.push().key ?: System.currentTimeMillis().toString()
+                val userRef2 =
+                    FirebaseDatabase.getInstance().getReference("Users").child(currentUserId)
+                userRef2.child("uname").get().addOnSuccessListener { unameSnap ->
+                    val uname = unameSnap.getValue(String::class.java) ?: "User"
+                    val comment = Comment(
+                        commentId = commentId,
+                        userId = currentUserId,
+                        username = uname,
+                        text = text,
+                        timestamp = System.currentTimeMillis()
+                    )
+                    commentsRef.child(commentId).setValue(comment)
+                    commentInput.text.clear()
+                }
+            }
+        }
 
         // ---------- Handle Like Button ----------
         val likesRef = postRef.child("likes")

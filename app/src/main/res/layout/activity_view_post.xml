@@ -119,15 +119,51 @@
 
     </LinearLayout>
 
-    <!-- Caption -->
-    <TextView
-        android:id="@+id/captionText"
+    <LinearLayout
+        android:id="@+id/commentSection"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:orientation="vertical"
         android:paddingStart="8dp"
         android:paddingEnd="8dp"
-        android:textColor="@color/black"
-        android:textSize="14sp"
-        android:layout_marginBottom="8dp" />
+        android:layout_marginTop="4dp"
+        android:layout_marginBottom="8dp">
+
+        <!-- Comments List -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/commentsRecycler"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:nestedScrollingEnabled="false"
+            android:overScrollMode="never" />
+
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:padding="4dp">
+
+            <EditText
+                android:id="@+id/commentInput"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint="Add a comment..."
+                android:textSize="13sp"
+                android:background="@android:color/transparent"
+                android:inputType="textCapSentences"
+                android:imeOptions="actionSend"
+                android:textColor="@color/black" />
+
+            <ImageView
+                android:id="@+id/sendComment"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/jahaz"
+                android:layout_marginStart="6dp" />
+        </LinearLayout>
+    </LinearLayout>
 
 </LinearLayout>
