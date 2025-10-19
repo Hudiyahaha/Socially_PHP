@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import android.util.Base64
@@ -259,6 +260,11 @@ class MainActivity5 : AppCompatActivity() {
                 requestPermissionLauncher.launch(Manifest.permission.CAMERA)
             }
         }
+
+        // In-app notifications for follow requests (Android 13+ permission safe)
+        NotificationHelper.ensureChannel(this)
+        NotificationHelper.maybeRequestPostNotifications(this)
+        NotificationHelper.startFollowRequestListener(this)
     }
 
     private fun uploadStoryToFirebase(uri: Uri, mediaType: String) {
