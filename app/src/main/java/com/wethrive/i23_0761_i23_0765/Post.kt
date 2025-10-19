@@ -9,5 +9,5 @@ data class Post(
     val username: String? = null,           // Username of poster
     val caption: String? = null,            // Caption text
     val userProfileBase64: String? = null,  // Base64 profile picture
-    val likes: List<String> = emptyList()
+    var likes: MutableList<String> = mutableListOf()
 )
