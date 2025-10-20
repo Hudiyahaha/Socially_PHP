@@ -8,6 +8,7 @@
     tools:context=".friends"
     android:background="@color/SMD">
 
+
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -16,6 +17,38 @@
         android:orientation="vertical"
         android:background="@color/white"
         android:padding="30dp">
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginBottom="10dp">
+
+            <Button
+                android:id="@+id/btnFollowers"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Followers"
+                android:layout_marginEnd="10dp"
+                android:backgroundTint="@color/SMD" />
+
+            <Button
+                android:id="@+id/btnFollowing"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Following"
+                android:backgroundTint="@color/SMD" />
+        </LinearLayout>
+
+        <EditText
+            android:id="@+id/searchBar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Search users..."
+            android:padding="10dp"
+            android:background="@drawable/edit_text"
+            android:drawableStart="@drawable/search"
+            android:layout_marginBottom="10dp"/>
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/recycler"
