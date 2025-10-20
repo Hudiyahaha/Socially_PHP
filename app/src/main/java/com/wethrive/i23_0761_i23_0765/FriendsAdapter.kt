@@ -9,6 +9,11 @@ import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.database.DataSnapshot
+import com.google.firebase.database.DatabaseError
+import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.ValueEventListener
 
 /**
  * Adapter for the friends RecyclerView shown in activity_friends.xml
@@ -23,6 +28,8 @@ class FriendsAdapter(
         val name: TextView = itemView.findViewById(R.id.txtName)
         //val email: TextView = itemView.findViewById(R.id.txtEmail)
         val bio: TextView = itemView.findViewById(R.id.txtBio)
+        val onlineDot: View = itemView.findViewById(R.id.onlineDot)
+
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): FriendViewHolder {
@@ -33,19 +40,14 @@ class FriendsAdapter(
     override fun onBindViewHolder(holder: FriendViewHolder, position: Int) {
         val user = items[position]
         holder.name.text = user.uname
-//        holder.email.text = user.email
         holder.bio.text = user.bio
 
-        // Attempt to decode base64 avatar if present
+        // Decode Base64 avatar
         if (!user.dp.isNullOrBlank()) {
             try {
                 val bytes = Base64.decode(user.dp, Base64.DEFAULT)
                 val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                if (bmp != null) {
-                    holder.avatar.setImageBitmap(bmp)
-                } else {
-                    holder.avatar.setImageResource(android.R.drawable.sym_def_app_icon)
-                }
+                holder.avatar.setImageBitmap(bmp ?: BitmapFactory.decodeResource(holder.itemView.resources, android.R.drawable.sym_def_app_icon))
             } catch (e: IllegalArgumentException) {
                 holder.avatar.setImageResource(android.R.drawable.sym_def_app_icon)
             }
@@ -53,11 +55,27 @@ class FriendsAdapter(
             holder.avatar.setImageResource(android.R.drawable.sym_def_app_icon)
         }
 
+        // Click -> open profile
         holder.itemView.setOnClickListener {
             val i = Intent(holder.itemView.context, profile::class.java)
             i.putExtra("id", user.id)
             holder.itemView.context.startActivity(i)
         }
+
+
+        val userRef = FirebaseDatabase.getInstance().getReference("Users").child(user.id!!)
+        userRef.child("status").addValueEventListener(object : ValueEventListener {
+            override fun onDataChange(dataSnapshot: DataSnapshot) {
+                val status = dataSnapshot.getValue(String::class.java)
+                if (status == "online") {
+                    holder.onlineDot.setBackgroundResource(R.drawable.green_dot)
+                } else {
+                    holder.onlineDot.setBackgroundResource(R.drawable.red_dot)
+                }
+            }
+
+            override fun onCancelled(error: DatabaseError) {}
+        })
     }
 
     override fun getItemCount(): Int = items.size
