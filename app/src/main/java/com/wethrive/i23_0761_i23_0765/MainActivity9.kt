@@ -703,6 +703,8 @@ class MainActivity9 : AppCompatActivity() {
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT
             )
+            // Local video should be on top of the container
+            setZOrderMediaOverlay(true)
         }
         container.addView(surfaceView)
         rtcEngine?.setupLocalVideo(VideoCanvas(surfaceView, VideoCanvas.RENDER_MODE_HIDDEN, 0))
@@ -722,10 +724,14 @@ class MainActivity9 : AppCompatActivity() {
                     FrameLayout.LayoutParams.MATCH_PARENT,
                     FrameLayout.LayoutParams.MATCH_PARENT
                 )
+                // Remote video stays in background
             }
             container.addView(surfaceView)
             rtcEngine?.setupRemoteVideo(VideoCanvas(surfaceView, VideoCanvas.RENDER_MODE_HIDDEN, uid))
             Log.d("MainActivity9", "Remote video setup complete for uid=$uid")
+
+            // Refresh local video to ensure it stays visible
+            setupLocalVideo()
         }
     }
 
