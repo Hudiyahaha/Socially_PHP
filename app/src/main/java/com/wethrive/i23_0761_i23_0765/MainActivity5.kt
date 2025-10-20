@@ -28,6 +28,8 @@ import java.io.IOException
 class MainActivity5 : AppCompatActivity() {
 
     private var photoUri: Uri? = null
+    val userid= FirebaseAuth.getInstance().currentUser?.uid
+    val UserRef = FirebaseDatabase.getInstance().getReference("Users").child(userid!!)
 
     private val requestPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
@@ -82,6 +84,7 @@ class MainActivity5 : AppCompatActivity() {
         val addstory = findViewById<ImageView>(R.id.addStoryIcon)
         val profile = findViewById<CircleImageView>(R.id.profile)
         val storyRecyclerView = findViewById<RecyclerView>(R.id.storyRecyclerView)
+        UserRef.child("online").onDisconnect().setValue(false)
 
         // Load profile picture
         val uid = FirebaseAuth.getInstance().currentUser?.uid
@@ -312,5 +315,14 @@ class MainActivity5 : AppCompatActivity() {
             intent.putExtra(MediaStore.EXTRA_OUTPUT, photoUri)
         }
         cameraLauncher.launch(intent)
+    }
+    override fun onStart(){
+        super.onStart()
+        UserRef.child("status").setValue("online")
+        UserRef.child("status").onDisconnect().setValue("offline")
+    }
+    override fun onStop(){
+        super.onStop()
+        UserRef.child("status").setValue("offline")
     }
 }
