@@ -691,24 +691,41 @@ class MainActivity9 : AppCompatActivity() {
     }
 
     private fun setupLocalVideo() {
-        val container = localVideoContainer ?: return
+        val container = localVideoContainer ?: run {
+            Log.w("MainActivity9", "Local video container is null, cannot setup local video")
+            return
+        }
+
         container.removeAllViews()
 
-        val surfaceView = SurfaceView(baseContext)
+        val surfaceView = SurfaceView(baseContext).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+        }
         container.addView(surfaceView)
-        rtcEngine?.setupLocalVideo(VideoCanvas(surfaceView, VideoCanvas.RENDER_MODE_FIT, 0))
+        rtcEngine?.setupLocalVideo(VideoCanvas(surfaceView, VideoCanvas.RENDER_MODE_HIDDEN, 0))
+        Log.d("MainActivity9", "Local video setup complete")
     }
 
     private fun setupRemoteVideo(uid: Int) {
-        val container = remoteVideoContainer ?: return
+        val container = remoteVideoContainer ?: run {
+            Log.w("MainActivity9", "Remote video container is null")
+            return
+        }
         runOnUiThread {
             container.removeAllViews()
 
             val surfaceView = SurfaceView(applicationContext).apply {
-                setZOrderMediaOverlay(true)
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                )
             }
             container.addView(surfaceView)
-            rtcEngine?.setupRemoteVideo(VideoCanvas(surfaceView, VideoCanvas.RENDER_MODE_FIT, uid))
+            rtcEngine?.setupRemoteVideo(VideoCanvas(surfaceView, VideoCanvas.RENDER_MODE_HIDDEN, uid))
+            Log.d("MainActivity9", "Remote video setup complete for uid=$uid")
         }
     }
 
@@ -816,7 +833,7 @@ class MainActivity9 : AppCompatActivity() {
                     FrameLayout.LayoutParams.MATCH_PARENT,
                     FrameLayout.LayoutParams.MATCH_PARENT
                 )
-                setBackgroundColor(0xFF000000.toInt())
+                setBackgroundColor(0xFF1A1A1A.toInt())
                 id = View.generateViewId()
             }
 
@@ -830,76 +847,127 @@ class MainActivity9 : AppCompatActivity() {
             }
             videoCallContainer?.addView(remoteVideoContainer)
 
-            // Local video container (small preview in top-right)
+            // Local video container (rounded preview in top-right)
             localVideoContainer = FrameLayout(this).apply {
-                val size = (120 * resources.displayMetrics.density).toInt()
-                layoutParams = FrameLayout.LayoutParams(size, (size * 1.5f).toInt()).apply {
-                    topMargin = (80 * resources.displayMetrics.density).toInt()
-                    marginEnd = (16 * resources.displayMetrics.density).toInt()
+                val width = (140 * resources.displayMetrics.density).toInt()
+                val height = (200 * resources.displayMetrics.density).toInt()
+                layoutParams = FrameLayout.LayoutParams(width, height).apply {
+                    topMargin = (60 * resources.displayMetrics.density).toInt()
+                    marginEnd = (20 * resources.displayMetrics.density).toInt()
                     gravity = android.view.Gravity.TOP or android.view.Gravity.END
                 }
-                setBackgroundColor(0xFF333333.toInt())
+                setBackgroundResource(R.drawable.bg_local_video)
+                elevation = 8f * resources.displayMetrics.density
+                clipToOutline = true
+                outlineProvider = object : android.view.ViewOutlineProvider() {
+                    override fun getOutline(view: View, outline: android.graphics.Outline) {
+                        outline.setRoundRect(0, 0, view.width, view.height, 12f * resources.displayMetrics.density)
+                    }
+                }
                 id = View.generateViewId()
             }
             videoCallContainer?.addView(localVideoContainer)
 
-            // End call button (bottom center, red)
-            endCallButton = ImageView(this).apply {
-                val buttonSize = (64 * resources.displayMetrics.density).toInt()
-                layoutParams = FrameLayout.LayoutParams(buttonSize, buttonSize).apply {
-                    bottomMargin = (40 * resources.displayMetrics.density).toInt()
+            // Control buttons container at bottom
+            val controlsContainer = LinearLayout(this).apply {
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    bottomMargin = (50 * resources.displayMetrics.density).toInt()
                     gravity = android.view.Gravity.BOTTOM or android.view.Gravity.CENTER_HORIZONTAL
                 }
-                setImageResource(android.R.drawable.ic_menu_call)
-                setBackgroundResource(android.R.drawable.button_onoff_indicator_off)
-                setColorFilter(0xFFFF0000.toInt())
-                setPadding(16, 16, 16, 16)
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(
+                    (24 * resources.displayMetrics.density).toInt(),
+                    (16 * resources.displayMetrics.density).toInt(),
+                    (24 * resources.displayMetrics.density).toInt(),
+                    (16 * resources.displayMetrics.density).toInt()
+                )
+                setBackgroundResource(R.drawable.bg_local_video)
+                elevation = 4f * resources.displayMetrics.density
+            }
+
+            // Mute button (left)
+            muteButton = ImageView(this).apply {
+                val buttonSize = (56 * resources.displayMetrics.density).toInt()
+                layoutParams = LinearLayout.LayoutParams(buttonSize, buttonSize).apply {
+                    marginEnd = (20 * resources.displayMetrics.density).toInt()
+                }
+                setBackgroundResource(R.drawable.bg_call_button)
+                setImageResource(R.drawable.ic_mic)
+                scaleType = ImageView.ScaleType.CENTER_INSIDE
+                setPadding(
+                    (14 * resources.displayMetrics.density).toInt(),
+                    (14 * resources.displayMetrics.density).toInt(),
+                    (14 * resources.displayMetrics.density).toInt(),
+                    (14 * resources.displayMetrics.density).toInt()
+                )
+                elevation = 2f * resources.displayMetrics.density
+                setOnClickListener {
+                    isMuted = !isMuted
+                    rtcEngine?.muteLocalAudioStream(isMuted)
+                    if (isMuted) {
+                        setImageResource(R.drawable.ic_mic_off)
+                        setColorFilter(0xFFFF5252.toInt())
+                    } else {
+                        setImageResource(R.drawable.ic_mic)
+                        clearColorFilter()
+                    }
+                }
+            }
+            controlsContainer.addView(muteButton)
+
+            // End call button (center, larger and red)
+            endCallButton = ImageView(this).apply {
+                val buttonSize = (70 * resources.displayMetrics.density).toInt()
+                layoutParams = LinearLayout.LayoutParams(buttonSize, buttonSize).apply {
+                    marginStart = (8 * resources.displayMetrics.density).toInt()
+                    marginEnd = (8 * resources.displayMetrics.density).toInt()
+                }
+                setBackgroundResource(R.drawable.bg_end_call_button)
+                setImageResource(R.drawable.ic_call_end)
+                scaleType = ImageView.ScaleType.CENTER_INSIDE
+                setPadding(
+                    (18 * resources.displayMetrics.density).toInt(),
+                    (18 * resources.displayMetrics.density).toInt(),
+                    (18 * resources.displayMetrics.density).toInt(),
+                    (18 * resources.displayMetrics.density).toInt()
+                )
+                elevation = 4f * resources.displayMetrics.density
+                rotation = 135f
                 setOnClickListener {
                     leaveChannel()
                     Toast.makeText(this@MainActivity9, "Call ended", Toast.LENGTH_SHORT).show()
                 }
             }
-            videoCallContainer?.addView(endCallButton)
+            controlsContainer.addView(endCallButton)
 
-            // Switch camera button (bottom-right)
+            // Switch camera button (right)
             switchCameraButton = ImageView(this).apply {
                 val buttonSize = (56 * resources.displayMetrics.density).toInt()
-                layoutParams = FrameLayout.LayoutParams(buttonSize, buttonSize).apply {
-                    bottomMargin = (40 * resources.displayMetrics.density).toInt()
-                    marginEnd = (24 * resources.displayMetrics.density).toInt()
-                    gravity = android.view.Gravity.BOTTOM or android.view.Gravity.END
+                layoutParams = LinearLayout.LayoutParams(buttonSize, buttonSize).apply {
+                    marginStart = (20 * resources.displayMetrics.density).toInt()
                 }
-                setImageResource(android.R.drawable.ic_menu_rotate)
-                setBackgroundResource(android.R.drawable.button_onoff_indicator_on)
-                setPadding(12, 12, 12, 12)
+                setBackgroundResource(R.drawable.bg_call_button)
+                setImageResource(R.drawable.ic_flip_camera)
+                scaleType = ImageView.ScaleType.CENTER_INSIDE
+                setPadding(
+                    (14 * resources.displayMetrics.density).toInt(),
+                    (14 * resources.displayMetrics.density).toInt(),
+                    (14 * resources.displayMetrics.density).toInt(),
+                    (14 * resources.displayMetrics.density).toInt()
+                )
+                elevation = 2f * resources.displayMetrics.density
                 setOnClickListener {
                     rtcEngine?.switchCamera()
+                    // Add a subtle animation
+                    animate().rotationBy(180f).setDuration(300).start()
                 }
             }
-            videoCallContainer?.addView(switchCameraButton)
+            controlsContainer.addView(switchCameraButton)
 
-            // Mute button (bottom-left)
-            muteButton = ImageView(this).apply {
-                val buttonSize = (56 * resources.displayMetrics.density).toInt()
-                layoutParams = FrameLayout.LayoutParams(buttonSize, buttonSize).apply {
-                    bottomMargin = (40 * resources.displayMetrics.density).toInt()
-                    marginStart = (24 * resources.displayMetrics.density).toInt()
-                    gravity = android.view.Gravity.BOTTOM or android.view.Gravity.START
-                }
-                setImageResource(android.R.drawable.ic_btn_speak_now)
-                setBackgroundResource(android.R.drawable.button_onoff_indicator_on)
-                setPadding(12, 12, 12, 12)
-                setOnClickListener {
-                    isMuted = !isMuted
-                    rtcEngine?.muteLocalAudioStream(isMuted)
-                    if (isMuted) {
-                        setColorFilter(0xFFFF0000.toInt())
-                    } else {
-                        clearColorFilter()
-                    }
-                }
-            }
-            videoCallContainer?.addView(muteButton)
+            videoCallContainer?.addView(controlsContainer)
 
             // Add to root view
             val rootView = window.decorView.findViewById<FrameLayout>(android.R.id.content)
