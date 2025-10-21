@@ -105,7 +105,9 @@
             android:layout_width="24dp"
             android:layout_height="24dp"
             android:src="@drawable/jahaz"
-            android:layout_marginStart="12dp" />
+            android:layout_marginStart="12dp"
+            android:id="@+id/sharePost"
+            />
 
         <View
             android:layout_width="0dp"
