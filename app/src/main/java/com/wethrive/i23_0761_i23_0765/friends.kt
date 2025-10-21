@@ -167,4 +167,5 @@ class friends : AppCompatActivity() {
         super.onDestroy()
         usersListener?.let { usersRef.removeEventListener(it) }
     }
+
 }

@@ -20,6 +20,7 @@ import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.database.DatabaseReference
 import com.google.firebase.database.FirebaseDatabase
 import de.hdodenhof.circleimageview.CircleImageView
 import java.io.IOException
@@ -28,8 +29,8 @@ import java.io.IOException
 class MainActivity5 : AppCompatActivity() {
 
     private var photoUri: Uri? = null
-    val userid= FirebaseAuth.getInstance().currentUser?.uid
-    val UserRef = FirebaseDatabase.getInstance().getReference("Users").child(userid!!)
+    private var UserRef: DatabaseReference? = null
+
 
     private val requestPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
@@ -73,6 +74,12 @@ class MainActivity5 : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContentView(R.layout.activity_main5)
+        val userid = FirebaseAuth.getInstance().currentUser?.uid
+        if (userid != null) {
+            UserRef = FirebaseDatabase.getInstance().getReference("Users").child(userid)
+        } else {
+            Log.w("MainActivity5", "No logged-in user. Skipping UserRef initialization.")
+        }
 
         val search = findViewById<ImageView>(R.id.search_bar)
         val dm = findViewById<ImageView>(R.id.message_icon)
@@ -84,7 +91,6 @@ class MainActivity5 : AppCompatActivity() {
         val addstory = findViewById<ImageView>(R.id.addStoryIcon)
         val profile = findViewById<CircleImageView>(R.id.profile)
         val storyRecyclerView = findViewById<RecyclerView>(R.id.storyRecyclerView)
-        UserRef.child("online").onDisconnect().setValue(false)
 
         // Load profile picture
         val uid = FirebaseAuth.getInstance().currentUser?.uid
@@ -318,11 +324,11 @@ class MainActivity5 : AppCompatActivity() {
     }
     override fun onStart(){
         super.onStart()
-        UserRef.child("status").setValue("online")
-        UserRef.child("status").onDisconnect().setValue("offline")
+        UserRef?.child("status")?.setValue("online")
+        UserRef?.child("status")?.onDisconnect()?.setValue("offline")
     }
     override fun onStop(){
         super.onStop()
-        UserRef.child("status").setValue("offline")
+        UserRef?.child("status")?.setValue("offline")
     }
 }

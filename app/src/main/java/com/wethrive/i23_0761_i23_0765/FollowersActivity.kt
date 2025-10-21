@@ -70,5 +70,6 @@ class FollowersActivity : AppCompatActivity() {
             Toast.makeText(this, "Failed to load followers: ${it.message}", Toast.LENGTH_SHORT).show()
         }
     }
+
 }
 
