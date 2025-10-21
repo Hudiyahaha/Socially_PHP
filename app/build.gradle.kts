@@ -39,6 +39,7 @@ android {
 dependencies {
     implementation("de.hdodenhof:circleimageview:3.1.0")
     implementation("io.agora.rtc:full-sdk:4.2.2")
+    implementation("com.google.firebase:firebase-messaging:24.0.0")
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.material)

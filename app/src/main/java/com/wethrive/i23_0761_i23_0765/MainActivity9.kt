@@ -101,7 +101,7 @@ class MainActivity9 : AppCompatActivity() {
     private val AUDIO_PERMISSION_REQ_CODE = 201
     private val VIDEO_PERMISSION_REQ_CODE = 202
     private val agoraAppId: String = "941f2bca958848af98ccea5d2bda5ab5"
-    private val agoraToken: String? = "007eJxTYHBw9JzY1+h/5dq/5J73dY8lVcyPsZ8o/NgqrcSs8V5y6ykFBksTwzSjpORES1MLCxOLxDRLi+Tk1ETTFKOklETTxCTT/SnfMhoCGRneiX5lZWSAQBDfksHYwCDS18u40MQ8OSrEzSQv3aswtzQqzdc0xNEo3iTSs6AqL8AguCjCzcLIvCLExDUnNyqv0sDZ1JiBAQAvcjGL"
+    private val agoraToken: String? = "007eJxTYDAq7D736eKJeoWtfOGMycHBmq0nufatWT1P+ViVkvDOLeYKDJYmhmlGScmJlqYWFiYWiWmWFsnJqYmmKUZJKYmmiUmmP1d+z2gIZGRo9P7OwAiFIL4lQ1JFZbBbiUuEWVCQiX+6T0qkQUGGV3GSQbFboWF8emp6rkmuZ0ZxZlqASU6ob5FfprtXaHGVuZO5MQMDACOCMqg="
 
     // Event handler for Agora callbacks
     private val rtcEventHandler = object : IRtcEngineEventHandler() {
@@ -131,6 +131,7 @@ class MainActivity9 : AppCompatActivity() {
                 }
             }
         }
+
         override fun onError(err: Int) {
             Log.e("MainActivity9", "Agora onError: $err")
             runOnUiThread {
