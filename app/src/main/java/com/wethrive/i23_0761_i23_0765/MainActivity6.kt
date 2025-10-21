@@ -6,6 +6,8 @@ import android.widget.ImageView
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.button.MaterialButton
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.database.FirebaseDatabase
 import de.hdodenhof.circleimageview.CircleImageView
 
 class MainActivity6 : AppCompatActivity() {
@@ -57,4 +59,5 @@ class MainActivity6 : AppCompatActivity() {
         }
 
     }
+
 }

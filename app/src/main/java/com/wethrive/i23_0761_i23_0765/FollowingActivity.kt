@@ -12,6 +12,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
 
 class FollowingActivity : AppCompatActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -70,5 +71,7 @@ class FollowingActivity : AppCompatActivity() {
             Toast.makeText(this, "Failed to load following: ${it.message}", Toast.LENGTH_SHORT).show()
         }
     }
+
+
 }
 
