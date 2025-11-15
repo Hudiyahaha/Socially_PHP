@@ -2,4 +2,26 @@
 <resources>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+    <color name="SMD">#9D3B41</color>
+    <color name="grey">#6C7B7E</color>
+    <color name="back">#964242</color>
+    <color name="btn">#AE7776</color>
+    <color name="border">#AD8E89</color>
+    <color name="button">#9A5A5B</color>
+    <color name="view">#E0E0E0</color>
+<color name="time"> #BBBBBB</color>
+    <color name="create">#1F1F1F</color>
+    <color name="purpleblue">#5D1DF1</color>
+<color name="msg">#F3F3F3</color>
+    <color name="mention">#6482AB</color>
+<color name="bluish">#F0F4F7</color>
+    <array name="rainbow_colors">
+        <item>#FF0050</item> <!-- pink/red -->
+        <item>#FF7A00</item> <!-- orange -->
+        <item>#FFD600</item> <!-- yellow -->
+        <item>#00FF00</item> <!-- green -->
+        <item>#00C6FF</item> <!-- blue -->
+        <item>#8E2DE2</item> <!-- purple -->
+    </array>
+
 </resources>

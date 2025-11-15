@@ -6,47 +6,46 @@
     android:orientation="vertical"
     android:background="@color/back"
     android:padding="20dp"
-
     >
 
 <RelativeLayout
 android:layout_width="match_parent"
 android:layout_height="wrap_content"
-android:layout_marginTop="10dp">
+android:layout_marginTop="20dp">
 
 <ImageView
     android:id="@+id/back_arrow"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
+    android:layout_width="20dp"
+    android:layout_height="20dp"
     android:src="@drawable/arrow_left"
     android:layout_alignParentStart="true"
     android:layout_centerVertical="true"/>
+
 <TextView
     android:id="@+id/title"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
     android:text="Socially"
-    android:textSize="60sp"
+    android:textSize="46sp"
     android:textColor="@color/white"
     android:layout_centerInParent="true"/>
+
 </RelativeLayout>
 
 <TextView
 android:layout_width="wrap_content"
 android:layout_height="wrap_content"
 android:text="Create An Account and Sign Up"
-android:textSize="16sp"
+android:textSize="14sp"
 android:textColor="@color/white"
 android:layout_gravity="center_horizontal"
 android:layout_marginTop="2dp"/>
 
-<ImageView
+<de.hdodenhof.circleimageview.CircleImageView
 android:id="@+id/profile_image"
-android:layout_width="100dp"
-android:layout_height="100dp"
-android:src="@drawable/camera"
-    android:background="@drawable/white_circle"
-    android:scaleType="centerInside"
+android:layout_width="140dp"
+android:layout_height="140dp"
+    android:src="@drawable/img"
     android:layout_gravity="center_horizontal"
     android:layout_marginTop="10dp"/>
 
@@ -55,14 +54,15 @@ android:src="@drawable/camera"
         android:layout_height="wrap_content"
         android:text="Username"
         android:textColor="@color/white"
-        android:textSize="20sp"
+        android:textSize="18sp"
         android:layout_marginTop="3dp"/>
 
     <EditText
+        android:id="@+id/username"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:hint="tejpatil064"
-        android:textColorHint="@color/white"
+        android:textColorHint="@color/time"
         android:textColor="@color/white"
         android:inputType="text"
         android:backgroundTint="@color/white"
@@ -72,14 +72,14 @@ android:src="@drawable/camera"
         android:layout_height="wrap_content"
         android:text="Your Name"
         android:textColor="@color/white"
-        android:textSize="20sp"
+        android:textSize="18sp"
         android:layout_marginTop="3dp"/>
 
     <EditText
 android:layout_width="match_parent"
 android:layout_height="wrap_content"
 android:hint="Patil"
-android:textColorHint="@color/white"
+android:textColorHint="@color/time"
 android:textColor="@color/white"
 android:inputType="textPersonName"
 android:layout_marginTop="3dp"
@@ -91,14 +91,14 @@ android:layout_marginTop="3dp"
         android:layout_height="wrap_content"
         android:text="Date of Birth"
         android:textColor="@color/white"
-        android:textSize="20sp"
+        android:textSize="18sp"
         android:layout_marginTop="3dp"/>
 
 <EditText
 android:layout_width="match_parent"
 android:layout_height="wrap_content"
 android:hint="02 - 09 - 2003"
-android:textColorHint="@color/white"
+android:textColorHint="@color/time"
 android:textColor="@color/white"
 android:inputType="date"
 android:layout_marginTop="3dp"
@@ -110,14 +110,15 @@ android:layout_marginTop="3dp"
         android:layout_height="wrap_content"
         android:text="Email"
         android:textColor="@color/white"
-        android:textSize="20sp"
+        android:textSize="18sp"
         android:layout_marginTop="3dp"/>
 
 <EditText
+    android:id="@+id/email"
 android:layout_width="match_parent"
 android:layout_height="wrap_content"
 android:hint="Enter E-mail"
-android:textColorHint="@color/white"
+android:textColorHint="@color/time"
 android:textColor="@color/white"
 android:inputType="textEmailAddress"
 android:layout_marginTop="3dp"
@@ -129,17 +130,18 @@ android:layout_marginTop="3dp"
         android:layout_height="wrap_content"
         android:text="Password"
         android:textColor="@color/white"
-        android:textSize="20sp"
+        android:textSize="18sp"
         android:layout_marginTop="3dp"/>
 
 <EditText
+    android:id="@+id/pass"
 android:layout_width="match_parent"
 android:layout_height="wrap_content"
 android:hint="Password"
-android:textColorHint="@color/white"
+android:textColorHint="@color/time"
 android:textColor="@color/white"
 android:inputType="textPassword"
-android:layout_marginTop="10dp"
+android:layout_marginTop="3dp"
 android:drawableEnd="@drawable/activity"
     android:backgroundTint="@color/white"
     />
@@ -147,15 +149,26 @@ android:drawableEnd="@drawable/activity"
     <com.google.android.material.button.MaterialButton
         android:layout_width="match_parent"
         android:layout_gravity="center_horizontal"
-        android:layout_height="wrap_content"
-        android:padding="20dp"
+        android:layout_height="60dp"
+        android:padding="2dp"
         android:layout_marginHorizontal="20dp"
         android:text="Create an Account"
         android:textColor="@color/white"
         android:backgroundTint="@color/btn"
         app:strokeColor="@color/border"
         app:strokeWidth="2dp"
-        app:cornerRadius="12dp"
-        android:id="@+id/create"
+        app:cornerRadius="8dp"
+        android:id="@+id/signup"
+        android:layout_marginTop="4dp"
         />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:text="Already Have an Account? Log In"
+        android:textColor="@color/white"
+        android:layout_marginTop="5dp"
+        android:id="@+id/login"
+/>
 </LinearLayout>

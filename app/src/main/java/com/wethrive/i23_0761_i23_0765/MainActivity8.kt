@@ -3,10 +3,14 @@ package com.wethrive.i23_0761_i23_0765
 import android.content.Intent
 import android.os.Bundle
 import android.widget.ImageView
+import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.database.FirebaseDatabase
 
 class MainActivity8 : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -14,17 +18,76 @@ class MainActivity8 : AppCompatActivity() {
         enableEdgeToEdge()
         setContentView(R.layout.activity_main8)
 
-        val exit=findViewById<ImageView>(R.id.exit_dm)
-        val plus=findViewById<ImageView>(R.id.plus)
+        val exit = findViewById<ImageView>(R.id.exit_dm)
+        val plus = findViewById<ImageView>(R.id.plus)
+        val titleUsername = findViewById<TextView>(R.id.username)
+
+        // Load current user's username to show in the top bar
+        val currentUser = FirebaseAuth.getInstance().currentUser
+        val currentUid = currentUser?.uid
+        if (currentUid == null) {
+            titleUsername.setText(R.string.guest)
+        } else {
+            val ref = FirebaseDatabase.getInstance().getReference("Users").child(currentUid).child("uname")
+            ref.get().addOnSuccessListener { snapshot ->
+                val uname = snapshot.getValue(String::class.java) ?: getString(R.string.unknown)
+                titleUsername.text = uname
+            }.addOnFailureListener {
+                titleUsername.setText(R.string.unknown)
+                Toast.makeText(this, "Failed to load username", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        // Read share extras if this screen was opened from the feed share button
+        val shareOwnerId = intent.getStringExtra("sharePostOwnerId")
+        val shareId = intent.getStringExtra("sharePostId")
+
+        // RecyclerView for DM chats
+        val recycler = findViewById<RecyclerView>(R.id.recyclerDM)
+        val emptyView = findViewById<TextView>(R.id.empty_dm)
+
+        val adapter = DMAdapter(mutableListOf())
+        // Inject share extras into adapter so they are forwarded on row tap
+        adapter.sharePostOwnerId = shareOwnerId
+        adapter.sharePostId = shareId
+
+        recycler.layoutManager = LinearLayoutManager(this)
+        recycler.adapter = adapter
+        recycler.setHasFixedSize(true)
+
+        // Load all registered users from Firebase, excluding current user
+        if (currentUid == null) {
+            // Not signed in: show empty message
+            emptyView.visibility = android.view.View.VISIBLE
+        } else {
+            val usersRef = FirebaseDatabase.getInstance().getReference("Users")
+            usersRef.get().addOnSuccessListener { snapshot ->
+                val list = mutableListOf<DMItem>()
+                for (child in snapshot.children) {
+                    val uid = child.key ?: continue
+                    if (uid == currentUid) continue
+
+                    val uname = child.child("uname").getValue(String::class.java) ?: getString(R.string.unknown)
+                    val dp = child.child("dp").getValue(String::class.java) ?: ""
+                    // lastMessage and time are not available here; leave blank for now
+                    list.add(DMItem(id = uid, name = uname, lastMessage = "", time = "", dp = if (dp.isBlank()) null else dp))
+                }
+                // Provide share extras when submitting list as well (for any callers using submitList signature)
+                adapter.submitList(list, shareOwnerId, shareId)
+                emptyView.visibility = if (list.isEmpty()) android.view.View.VISIBLE else android.view.View.GONE
+            }.addOnFailureListener { e ->
+                Toast.makeText(this, "Failed to load users: ${e.message}", Toast.LENGTH_SHORT).show()
+                emptyView.visibility = android.view.View.VISIBLE
+            }
+        }
 
         exit.setOnClickListener {
             finish()
         }
 
         plus.setOnClickListener {
-            val intent= Intent(this, MainActivity9::class.java)
+            val intent = Intent(this, MainActivity9::class.java)
             startActivity(intent)
-
         }
 
     }

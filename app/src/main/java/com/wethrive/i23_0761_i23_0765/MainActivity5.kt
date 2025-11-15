@@ -4,27 +4,60 @@ import android.Manifest
 import android.content.ContentValues
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.BitmapFactory
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
+import android.util.Base64
+import android.util.Log
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.database.DatabaseReference
+import com.google.firebase.database.FirebaseDatabase
 import de.hdodenhof.circleimageview.CircleImageView
+import java.io.IOException
+
 
 class MainActivity5 : AppCompatActivity() {
 
     private var photoUri: Uri? = null
+    private var UserRef: DatabaseReference? = null
+
 
     private val requestPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
-            if (isGranted) {
-                openCamera()
+            if (isGranted) openCamera()
+        }
+
+    private val mediaPickerLauncher =
+        registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+            if (uris.isNotEmpty()) {
+                for (uri in uris) {
+                    val mimeType = contentResolver.getType(uri)
+                    val isVideo = mimeType?.startsWith("video") == true
+                    uploadStoryToFirebase(uri, if (isVideo) "video" else "image")
+                }
+            } else {
+                Toast.makeText(this, "No media selected", Toast.LENGTH_SHORT).show()
+            }
+        }
+    private val postPickerLauncher =
+        registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+            if (uris.isNotEmpty()) {
+                val intent = Intent(this, MainActivity16::class.java)
+                intent.putParcelableArrayListExtra("mediaUris", ArrayList(uris))
+                startActivity(intent)
+            } else {
+                Toast.makeText(this, "No media selected", Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -33,6 +66,7 @@ class MainActivity5 : AppCompatActivity() {
             if (result.resultCode == RESULT_OK) {
                 photoUri?.let { uri ->
                     sendBroadcast(Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE, uri))
+                    uploadStoryToFirebase(uri, "image")
                 }
             }
         }
@@ -41,50 +75,181 @@ class MainActivity5 : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContentView(R.layout.activity_main5)
+        val userid = FirebaseAuth.getInstance().currentUser?.uid
+
+        if (userid != null) {
+            UserRef = FirebaseDatabase.getInstance().getReference("Users").child(userid)
+        } else {
+            Log.w("MainActivity5", "No logged-in user. Skipping UserRef initialization.")
+        }
 
         val search = findViewById<ImageView>(R.id.search_bar)
         val dm = findViewById<ImageView>(R.id.message_icon)
-
         val notis = findViewById<ImageView>(R.id.heart)
-        val profile = findViewById<CircleImageView>(R.id.profile2)
+        val profile_bottom = findViewById<CircleImageView>(R.id.profile2)
         val create = findViewById<ImageView>(R.id.create)
-
         val camera = findViewById<ImageView>(R.id.camera_icon)
         val your_story = findViewById<LinearLayout>(R.id.your_story)
-        val view_story = findViewById<LinearLayout>(R.id.view_story)
+        val addstory = findViewById<ImageView>(R.id.addStoryIcon)
+        val profile = findViewById<CircleImageView>(R.id.profile)
+        val storyRecyclerView = findViewById<RecyclerView>(R.id.storyRecyclerView)
 
+        // Load profile picture
+        val uid = FirebaseAuth.getInstance().currentUser?.uid
+        if (uid == null) {
+            Log.e("MainActivity5", "User is not logged in with Firebase")
+            return
+        }
+        if (uid != null) {
+            val databaseRef = FirebaseDatabase.getInstance().getReference("Users").child(uid)
+            databaseRef.child("dp").get()
+                .addOnSuccessListener { snapshot ->
+                    if (snapshot.exists()) {
+                        val imageString = snapshot.getValue(String::class.java)
+                        if (imageString != null) {
+                            val imageBytes = Base64.decode(imageString, Base64.DEFAULT)
+                            val bitmap =
+                                BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+                            profile.setImageBitmap(bitmap)
+                            profile_bottom.setImageBitmap(bitmap)
+                        }
+                    }
+                }
+                .addOnFailureListener {
+                    Log.e("Firebase", "Error: ${it.message}")
+                }
+        }
+        val storyList = mutableListOf<Story>()
+        storyRecyclerView.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+
+        val storyAdapter = StoryAdapter(storyList) { story ->
+            val intent = Intent(this, ViewStory::class.java)
+            intent.putExtra("userId", story.userId)
+            startActivity(intent)
+        }
+        storyRecyclerView.adapter = storyAdapter
+
+        val followingRef = FirebaseDatabase.getInstance().getReference("Following").child(uid!!)
+        val storiesRef = FirebaseDatabase.getInstance().getReference("stories")
+
+        followingRef.get().addOnSuccessListener { snapshot ->
+            val followingIDs = mutableListOf<String>()
+            for (child in snapshot.children) {
+                followingIDs.add(child.key.toString())
+            }
+            storyList.clear()
+
+            var completedRequests = 0
+            val totalRequests = followingIDs.size
+
+            for (id in followingIDs) {
+                storiesRef.child(id).get().addOnSuccessListener { storySnapshot ->
+                    if (storySnapshot.exists()) {
+                        var latestStory: Story? = null
+                        for (storyChild in storySnapshot.children) {
+                            val story = storyChild.getValue(Story::class.java)
+                            if (story != null && !story.mediaBase64.isNullOrEmpty()) {
+                                story.userId = id
+                                if (latestStory == null || story.timestamp > latestStory!!.timestamp) {
+                                    latestStory = story
+                                }
+                            }
+                        }
+                        if (latestStory != null) {
+                            storyList.add(latestStory)
+                        }
+                    }
+
+                    completedRequests++
+                    if (completedRequests == totalRequests) {
+                        storyList.sortByDescending { it.timestamp }
+                        storyAdapter.notifyDataSetChanged()
+                    }
+
+                }.addOnFailureListener {
+                    completedRequests++
+                    if (completedRequests == totalRequests) {
+                        storyList.sortByDescending { it.timestamp }
+                        storyAdapter.notifyDataSetChanged()
+                    }
+                }
+            }
+        }
+
+      val postRecycler= findViewById<RecyclerView>(R.id.postRecycler)
+        postRecycler.layoutManager = LinearLayoutManager(this, LinearLayoutManager.VERTICAL, false)
+        val postList = mutableListOf<Post>()
+        val postAdapter = FeedPostAdapter(postList)
+        postRecycler.adapter = postAdapter
+        val currentUid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        val postsRef = FirebaseDatabase.getInstance().getReference("Posts")
+
+        followingRef.get().addOnSuccessListener { snapshot ->
+            val followedIds = mutableListOf<String>()
+            for (child in snapshot.children) {
+                followedIds.add(child.key.toString())
+            }
+            followedIds.add(currentUid) // include your own posts
+
+            postList.clear()
+            var completedRequests = 0
+            val totalRequests = followedIds.size
+
+            for (id in followedIds) {
+                postsRef.child(id).get().addOnSuccessListener { postSnapshot ->
+                    if (postSnapshot.exists()) {
+                        for (postNode in postSnapshot.children) {
+                            val post = postNode.getValue(Post::class.java)
+                            if (post != null) {
+                                postList.add(post)
+                            }
+                        }
+                    }
+                    completedRequests++
+                    if (completedRequests == totalRequests) {
+                        postList.sortByDescending { it.timestamp }
+                        postAdapter.notifyDataSetChanged()
+                    }
+                }.addOnFailureListener {
+                    completedRequests++
+                    if (completedRequests == totalRequests) {
+                        postList.sortByDescending { it.timestamp }
+                        postAdapter.notifyDataSetChanged()
+                    }
+                }
+            }
+        }
+
+        // Upload image/video story
+        addstory.setOnClickListener {
+            mediaPickerLauncher.launch(arrayOf("image/*", "video/*"))
+        }
+
+        // Open last story
         your_story.setOnClickListener {
-            val intent = Intent(this, MainActivity19::class.java)
-            startActivity(intent)
+            val user = FirebaseAuth.getInstance().currentUser
+            if (user != null) {
+                val intent = Intent(this, ViewStory::class.java)
+                intent.putExtra("userId", user.uid)
+                startActivity(intent)
+            }
         }
 
-        view_story.setOnClickListener {
-            val intent = Intent(this, MainActivity18::class.java)
-            startActivity(intent)
-        }
 
         create.setOnClickListener {
-            val intent = Intent(this, MainActivity16::class.java)
-            startActivity(intent)
+            startActivity(Intent(this, MainActivity16::class.java))
         }
-
-        profile.setOnClickListener {
+        profile_bottom.setOnClickListener {
             val intent = Intent(this, MainActivity13::class.java)
             intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             startActivity(intent)
         }
-
         search.setOnClickListener {
             val intent = Intent(this, MainActivity6::class.java)
             intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             startActivity(intent)
         }
-
-        dm.setOnClickListener {
-            val intent = Intent(this, MainActivity8::class.java)
-            startActivity(intent)
-        }
-
+        dm.setOnClickListener { startActivity(Intent(this, MainActivity8::class.java)) }
         notis.setOnClickListener {
             val intent = Intent(this, MainActivity11::class.java)
             intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
@@ -100,6 +265,60 @@ class MainActivity5 : AppCompatActivity() {
                 requestPermissionLauncher.launch(Manifest.permission.CAMERA)
             }
         }
+
+        // In-app notifications for follow requests (Android 13+ permission safe)
+        NotificationHelper.ensureChannel(this)
+        NotificationHelper.maybeRequestPostNotifications(this)
+        NotificationHelper.startFollowRequestListener(this)
+        NotificationHelper.startMessageListeners(this)
+        NotificationHelper.startScreenshotListeners(this)
+    }
+
+    private fun uploadStoryToFirebase(uri: Uri, mediaType: String) {
+        try {
+            val inputStream = contentResolver.openInputStream(uri)
+            val bytes = inputStream?.readBytes()
+
+            if (bytes == null || bytes.isEmpty()) {
+                Toast.makeText(this, "Unable to read file", Toast.LENGTH_SHORT).show()
+                return
+            }
+
+            if (bytes.size > 3_000_000) {
+                Toast.makeText(this, "File too large! Keep under ~3MB.", Toast.LENGTH_SHORT).show()
+                return
+            }
+
+            val base64String = Base64.encodeToString(bytes, Base64.DEFAULT)
+            val user = FirebaseAuth.getInstance().currentUser ?: return
+
+            val ref = FirebaseDatabase.getInstance()
+                .getReference("stories")
+                .child(user.uid)
+                .push()
+
+            val story = Story(
+                id = ref.key,
+                userId = user.uid,
+                mediaBase64 = base64String,
+                mediaType = mediaType,
+                timestamp = System.currentTimeMillis()
+            )
+
+            ref.setValue(story).addOnCompleteListener {
+                if (it.isSuccessful) {
+                    Toast.makeText(this, "Story uploaded!", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this, "Failed to upload story", Toast.LENGTH_SHORT).show()
+                }
+            }
+        } catch (e: IOException) {
+            e.printStackTrace()
+            Toast.makeText(this, "Error reading file", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Toast.makeText(this, "Error uploading story", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun openCamera() {
@@ -107,14 +326,22 @@ class MainActivity5 : AppCompatActivity() {
             put(MediaStore.Images.Media.TITLE, "IMG_${System.currentTimeMillis()}")
             put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
         }
+
         photoUri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
 
         val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
-
         if (photoUri != null) {
             intent.putExtra(MediaStore.EXTRA_OUTPUT, photoUri)
         }
-
         cameraLauncher.launch(intent)
+    }
+    override fun onStart(){
+        super.onStart()
+        UserRef?.child("status")?.setValue("online")
+        UserRef?.child("status")?.onDisconnect()?.setValue("offline")
+    }
+    override fun onStop(){
+        super.onStop()
+        UserRef?.child("status")?.setValue("offline")
     }
 }

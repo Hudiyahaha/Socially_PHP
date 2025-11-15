@@ -30,7 +30,6 @@
             android:id="@+id/profile"
             android:layout_width="150dp"
             android:layout_height="150dp"
-            android:src="@drawable/me"
             android:layout_below="@id/text"
             android:layout_centerHorizontal="true"
 
@@ -64,39 +63,40 @@
             android:textStyle="bold"
             android:layout_marginTop="20dp"
             android:textColor="@color/button"
-
+            android:id="@+id/switch_account"
             />
+
     </RelativeLayout>
 
         <View
             android:layout_width="match_parent"
             android:layout_height="1dp"
             android:background="@color/view"
-            android:layout_above="@id/login"
-            android:layout_marginBottom="15dp"
-            />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Dont't Have an Account?"
             android:layout_alignParentBottom="true"
-
-            android:textColor="@color/SMD"
-            android:layout_centerHorizontal="true"
-            android:layout_marginBottom="30dp"
-            android:id="@+id/login"
+            android:layout_marginBottom="55dp"
             />
 
-         <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text=" Sign up."
-             android:layout_alignParentBottom="true"
-        android:textStyle="bold"
-             android:textColor="@color/SMD"
-             android:layout_toRightOf="@id/login"
-             android:layout_marginBottom="30dp"
-        />
+<!--        <TextView-->
+<!--            android:layout_width="wrap_content"-->
+<!--            android:layout_height="wrap_content"-->
+<!--            android:text="Dont't Have an Account?"-->
+<!--            android:layout_alignParentBottom="true"-->
+
+<!--            android:textColor="@color/SMD"-->
+<!--            android:layout_centerHorizontal="true"-->
+<!--            android:layout_marginBottom="30dp"-->
+<!--            android:id="@+id/login"-->
+<!--            />-->
+
+<!--         <TextView-->
+<!--        android:layout_width="wrap_content"-->
+<!--        android:layout_height="wrap_content"-->
+<!--        android:text=" Sign up."-->
+<!--             android:layout_alignParentBottom="true"-->
+<!--        android:textStyle="bold"-->
+<!--             android:textColor="@color/SMD"-->
+<!--             android:layout_toRightOf="@id/login"-->
+<!--             android:layout_marginBottom="30dp"-->
+<!--        />-->
 
 </RelativeLayout>

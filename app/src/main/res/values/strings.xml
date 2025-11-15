@@ -1,3 +1,23 @@
 <resources>
     <string name="app_name">23I-0761_23I-0765</string>
+    <!-- Content description for images in chat messages -->
+    <string name="content_desc_message_image">Message image</string>
+    <!-- Fallback user name when profile name is not available -->
+    <string name="unknown_user">Unknown</string>
+    <!-- Agora configuration (optional) -->
+    <string name="agora_app_id">REPLACE_WITH_YOUR_AGORA_APP_ID</string>
+    <!-- Call status UI -->
+    <string name="call_connecting">Connecting…</string>
+    <string name="call_connected">Connected</string>
+    <string name="call_timer_default">00:00</string>
+    <!-- Incoming call dialog -->
+    <string name="incoming_call_title">Incoming call</string>
+    <string name="incoming_call_message">Do you want to accept this call?</string>
+    <string name="accept">Accept</string>
+    <string name="decline">Decline</string>
+    <!-- DM share post -->
+    <string name="view_shared_post">View shared post</string>
+    <string name="guest">Guest</string>
+    <string name="unknown">Unknown</string>
+    <string name="like_count">%1$d likes</string>
 </resources>

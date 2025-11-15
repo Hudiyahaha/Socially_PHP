@@ -2,25 +2,87 @@ package com.wethrive.i23_0761_i23_0765
 
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.widget.Button
+import android.widget.EditText
+import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
+import com.android.volley.toolbox.StringRequest
+import com.android.volley.toolbox.Volley
+import org.json.JSONObject
 
 class MainActivity4 : AppCompatActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContentView(R.layout.activity_main4)
 
-        val login_button=findViewById<Button>(R.id.login_button)
+        val email = findViewById<EditText>(R.id.email)
+        val pass = findViewById<EditText>(R.id.password)
+        val login_button = findViewById<Button>(R.id.login_button)
+        val sign_up = findViewById<TextView>(R.id.signup)
 
-        login_button.setOnClickListener {
-            android.widget.Toast.makeText(this, "Opening Activity 5", android.widget.Toast.LENGTH_SHORT).show()
-            val intent = Intent(this, MainActivity5::class.java)
-            startActivity(intent)
+        sign_up.setOnClickListener {
+            startActivity(Intent(this, MainActivity2::class.java))
+            finish()
         }
 
+        login_button.setOnClickListener {
+            val em = email.text.toString()
+            val pa = pass.text.toString()
+
+            if (em.isEmpty() || pa.isEmpty()) {
+                email.error = "Email required"
+                pass.error = "Password required"
+                return@setOnClickListener
+            }
+
+            val url = "http://192.168.100.204/socially/login.php"
+
+            val request = object : StringRequest(
+                Method.POST, url,
+                { response ->
+                    Log.d("LOGIN", response)
+
+                    val json = JSONObject(response)
+
+                    if (json.getInt("status") == 1) {
+
+                        // SAVE SESSION / USERS DATA
+                        val prefs = getSharedPreferences("user_session", MODE_PRIVATE)
+                        prefs.edit().apply {
+                            putBoolean("isLoggedIn", true)
+                            putBoolean("isFirstTime", false)
+                            putString("username", json.getString("username"))
+                            putString("email", json.getString("email"))
+                            putString("image", json.getString("image"))
+                            apply()
+                        }
+
+                        // MOVE TO MAIN SCREEN
+                        startActivity(Intent(this, MainActivity3::class.java))
+                        finish()
+
+                    } else {
+                        Toast.makeText(this, json.getString("message"), Toast.LENGTH_SHORT).show()
+                    }
+                },
+                { error ->
+                    Toast.makeText(this, error.toString(), Toast.LENGTH_SHORT).show()
+                }
+            ) {
+                override fun getParams(): MutableMap<String, String> {
+                    val params = HashMap<String, String>()
+                    params["email"] = em
+                    params["password"] = pa
+                    return params
+                }
+            }
+
+            Volley.newRequestQueue(this).add(request)
+        }
     }
 }
