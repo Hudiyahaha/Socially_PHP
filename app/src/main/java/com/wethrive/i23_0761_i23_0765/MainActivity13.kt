@@ -182,7 +182,9 @@ class MainActivity13 : AppCompatActivity() {
         }
 
         logoutButton.setOnClickListener {
-            FirebaseAuth.getInstance().signOut()
+            val prefs = getSharedPreferences("user_session", MODE_PRIVATE)
+            prefs.edit().clear().apply()   // remove all stored login data
+
             val intent = Intent(this, MainActivity4::class.java)
             intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
             startActivity(intent)

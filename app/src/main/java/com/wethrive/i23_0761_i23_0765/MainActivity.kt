@@ -11,17 +11,29 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 
+
 class MainActivity : AppCompatActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContentView(R.layout.activity_main)
+
         Handler(Looper.getMainLooper()).postDelayed({
-            val intent = Intent(this, MainActivity2::class.java)
-            startActivity(intent)
-            finish() // prevent going back to splash
+            decideNextScreen()
         }, 2000)
+    }
 
+    private fun decideNextScreen() {
+        val prefs = getSharedPreferences("user_session", MODE_PRIVATE)
+        val loggedIn = prefs.getBoolean("isLoggedIn", false)
+        val firstTime = prefs.getBoolean("isFirstTime", true)
 
+        when {
+            !loggedIn -> startActivity(Intent(this, MainActivity4::class.java))
+            firstTime -> startActivity(Intent(this, MainActivity2::class.java))
+            else -> startActivity(Intent(this, MainActivity5::class.java))
+        }
+        finish()
     }
 }

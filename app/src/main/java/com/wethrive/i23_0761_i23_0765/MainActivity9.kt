@@ -104,7 +104,7 @@ class MainActivity9 : AppCompatActivity() {
     private val AUDIO_PERMISSION_REQ_CODE = 201
     private val VIDEO_PERMISSION_REQ_CODE = 202
     private val agoraAppId: String = "941f2bca958848af98ccea5d2bda5ab5"
-    private val agoraToken: String? = "007eJxTYJguOWWbVajq8kS9OsfdxhnShwy9xUM1P7ZNL9uudzT43R4FBksTwzSjpORES1MLCxOLxDRLi+Tk1ETTFKOklETTxCTT7POsmQ2BjAztp6xYGRkgEMS3ZEiqqAx2K3GJMAsKMvFP90mJNCjI8CpOMih2KzSMT09NzzXJ9cwozkwLMMkJ9S3yy3T3Ci2uMncyN2ZgAAAufjB0"
+    private val agoraToken: String? = "007eJxTYIisYmzfp/pDeC/Lw9fJzD//B0dmLtjQGz/V6889H4HExcEKDJYmhmlGScmJlqYWFiYWiWmWFsnJqYmmKUZJKYmmiUmmfiocmQ2BjAwujHzMjAwQCOJbMiRVVAa7lbhEmAUFmfin+6REGhRkeBUnGRS7FRrGp6em55rkemYUZ6YFmOSE+hb5Zbp7hRZXmTuZGzMwAACdlTBU"
 
     // Event handler for Agora callbacks
     private val rtcEventHandler = object : IRtcEngineEventHandler() {

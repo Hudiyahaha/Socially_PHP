@@ -12,8 +12,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.button.MaterialButton
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.FirebaseDatabase
 import de.hdodenhof.circleimageview.CircleImageView
 
 
@@ -26,26 +24,18 @@ class MainActivity3 : AppCompatActivity() {
         var btn=findViewById<MaterialButton>(R.id.button)
         var switch_akont=findViewById<TextView>(R.id.switch_account)
         var profile=findViewById<CircleImageView>(R.id.profile)
+        val prefs = getSharedPreferences("user_session", MODE_PRIVATE)
+        val image = prefs.getString("image", "")
+        val username = prefs.getString("username", "")
+        val email = prefs.getString("email", "")
 
-        val uid = FirebaseAuth.getInstance().currentUser?.uid
-        if (uid != null) {
-            val databaseRef = FirebaseDatabase.getInstance().getReference("Users").child(uid)
-            databaseRef.child("dp").get()
-                .addOnSuccessListener { snapshot ->
-                    if (snapshot.exists()) {
-                        val imageString = snapshot.getValue(String::class.java)
-
-                        if (imageString != null) {
-                            val imageBytes = Base64.decode(imageString, Base64.DEFAULT)
-                            val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
-                            profile.setImageBitmap(bitmap)
-                        }
-                    }
-                }
-                .addOnFailureListener {
-                    Log.e("Firebase", "Error: ${it.message}")
-                }
+        if (!image.isNullOrEmpty()) {
+            val bytes = Base64.decode(image, Base64.DEFAULT)
+            val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+            profile.setImageBitmap(bitmap)
         }
+
+
 
         btn.setOnClickListener{
             var intent= Intent(this, MainActivity5::class.java)
@@ -54,7 +44,7 @@ class MainActivity3 : AppCompatActivity() {
         }
 
         switch_akont.setOnClickListener {
-            FirebaseAuth.getInstance().signOut()
+
             val intent = Intent(this, MainActivity4::class.java)
             //intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
             startActivity(intent)

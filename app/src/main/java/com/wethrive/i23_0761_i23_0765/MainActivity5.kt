@@ -76,6 +76,7 @@ class MainActivity5 : AppCompatActivity() {
         enableEdgeToEdge()
         setContentView(R.layout.activity_main5)
         val userid = FirebaseAuth.getInstance().currentUser?.uid
+
         if (userid != null) {
             UserRef = FirebaseDatabase.getInstance().getReference("Users").child(userid)
         } else {
@@ -95,6 +96,10 @@ class MainActivity5 : AppCompatActivity() {
 
         // Load profile picture
         val uid = FirebaseAuth.getInstance().currentUser?.uid
+        if (uid == null) {
+            Log.e("MainActivity5", "User is not logged in with Firebase")
+            return
+        }
         if (uid != null) {
             val databaseRef = FirebaseDatabase.getInstance().getReference("Users").child(uid)
             databaseRef.child("dp").get()

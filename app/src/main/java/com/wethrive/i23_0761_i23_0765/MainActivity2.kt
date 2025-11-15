@@ -10,23 +10,21 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.FirebaseDatabase
+
 import androidx.activity.result.contract.ActivityResultContracts
+import com.android.volley.Request
+import com.android.volley.toolbox.StringRequest
+import com.android.volley.toolbox.Volley
 import de.hdodenhof.circleimageview.CircleImageView
 
 class MainActivity2 : AppCompatActivity() {
-    private lateinit var mAuth: FirebaseAuth
-    private lateinit var database: FirebaseDatabase
+
     private var selectedImageUri: Uri? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
 
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-
-        mAuth= FirebaseAuth.getInstance()
-        database = FirebaseDatabase.getInstance()
 
         setContentView(R.layout.activity_main2)
 
@@ -37,10 +35,6 @@ class MainActivity2 : AppCompatActivity() {
         val login=findViewById<TextView>(R.id.login)
         val profile=findViewById<CircleImageView>(R.id.profile_image)
         var img=""
-
-        // Restore previously selected image if any
-//        selectedImageUri = savedInstanceState?.getString("selectedImageUri")?.toUri()
-//        selectedImageUri?.let { profile.setImageURI(it) }
 
         // Launcher to pick an image from gallery
         val pickImageLauncher = registerForActivityResult(
@@ -76,34 +70,34 @@ class MainActivity2 : AppCompatActivity() {
                 Toast.makeText(this, "Select Profile Image", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
-
-            mAuth.createUserWithEmailAndPassword(em,pa)
-                .addOnCompleteListener {
-                    if(it.isSuccessful){
-
-                        //Jo bhi user create hua hai uski Id dedo hamey
-                        val uid = mAuth.currentUser?.uid
-
-                        // yeh uid hamny apny userdata k object user mai daaldi
-                        val user = UserData(uid, uname, em, img, "Hey there! I'm using Socially.")
-
-                        // ab yeh user object ko database mai daldo
-                        if (uid != null) {
-                            database.getReference("Users").child(uid).setValue(user)
-                        }
-
-                        val intent= Intent(this,MainActivity3::class.java)
-                        startActivity(intent)
-                        finish()
-
-                    }
-                    else{
-                        val msg=it.exception?.localizedMessage
-                        email.error=msg.toString()
-                    }
+            val request = object : StringRequest(
+                Request.Method.POST,
+                "http://192.168.100.204/socially/signup.php",
+                { response ->
+                    Toast.makeText(this, response, Toast.LENGTH_LONG).show()
+                    finish()
+                },
+                { error ->
+                    Toast.makeText(this, error.toString(), Toast.LENGTH_LONG).show()
                 }
+            ) {
+                override fun getParams(): Map<String, String> {
+                    val params = HashMap<String, String>()
+                    params["username"] = uname
+                    params["email"] = em
+                    params["password"] = pa
+                    params["image"]=img
+                    return params
+                }
+            }
 
+            val queue = Volley.newRequestQueue(this)
+            queue.add(request)
         }
+
+
+
+
 
         login.setOnClickListener {
             val intent= Intent(this,MainActivity4::class.java)
@@ -115,12 +109,7 @@ class MainActivity2 : AppCompatActivity() {
 
  override fun onStart() {
        super.onStart()
-    if (mAuth.currentUser!=null) // user is logged in
-        {
-            val i=Intent(this, MainActivity5::class.java)
-           startActivity(i)
-            finish()
-        }
+
     }
 
 //    override fun onSaveInstanceState(outState: Bundle) {
