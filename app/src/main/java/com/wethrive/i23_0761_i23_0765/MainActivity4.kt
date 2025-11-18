@@ -40,35 +40,41 @@ class MainActivity4 : AppCompatActivity() {
                 return@setOnClickListener
             }
 
-            val url = "http://192.168.100.204/socially/login.php"
+            val url = "http://sociallyah.atwebpages.com/login.php"
 
             val request = object : StringRequest(
                 Method.POST, url,
                 { response ->
                     Log.d("LOGIN", response)
+                    Toast.makeText(this, response, Toast.LENGTH_LONG).show()
 
                     val json = JSONObject(response)
 
                     if (json.getInt("status") == 1) {
 
-                        // SAVE SESSION / USERS DATA
                         val prefs = getSharedPreferences("user_session", MODE_PRIVATE)
                         prefs.edit().apply {
                             putBoolean("isLoggedIn", true)
                             putBoolean("isFirstTime", false)
+
+                            putString("id", json.getString("id"))
+                            putString("uid", json.getString("uid"))      // NEW
                             putString("username", json.getString("username"))
                             putString("email", json.getString("email"))
-                            putString("image", json.getString("image"))
+                            putString("dp", json.getString("dp"))        // UPDATED
+                            putString("bio", json.getString("bio"))      // OPTIONAL
+                            putInt("online", json.getInt("online"))      // OPTIONAL
+
                             apply()
                         }
 
-                        // MOVE TO MAIN SCREEN
                         startActivity(Intent(this, MainActivity3::class.java))
                         finish()
 
                     } else {
                         Toast.makeText(this, json.getString("message"), Toast.LENGTH_SHORT).show()
                     }
+
                 },
                 { error ->
                     Toast.makeText(this, error.toString(), Toast.LENGTH_SHORT).show()

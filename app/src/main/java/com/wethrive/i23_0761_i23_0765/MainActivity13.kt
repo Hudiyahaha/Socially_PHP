@@ -183,12 +183,12 @@ class MainActivity13 : AppCompatActivity() {
 
         logoutButton.setOnClickListener {
             val prefs = getSharedPreferences("user_session", MODE_PRIVATE)
-            prefs.edit().clear().apply()   // remove all stored login data
+            prefs.edit().putBoolean("isLoggedIn", false).apply()
 
             val intent = Intent(this, MainActivity4::class.java)
-            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             startActivity(intent)
-            finish()
+
         }
 
         search.setOnClickListener {

@@ -20,9 +20,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.DatabaseReference
-import com.google.firebase.database.FirebaseDatabase
+import com.android.volley.toolbox.StringRequest
+import com.android.volley.toolbox.Volley
 import de.hdodenhof.circleimageview.CircleImageView
 import java.io.IOException
 
@@ -30,7 +29,7 @@ import java.io.IOException
 class MainActivity5 : AppCompatActivity() {
 
     private var photoUri: Uri? = null
-    private var UserRef: DatabaseReference? = null
+
 
 
     private val requestPermissionLauncher =
@@ -44,7 +43,7 @@ class MainActivity5 : AppCompatActivity() {
                 for (uri in uris) {
                     val mimeType = contentResolver.getType(uri)
                     val isVideo = mimeType?.startsWith("video") == true
-                    uploadStoryToFirebase(uri, if (isVideo) "video" else "image")
+                    uploadStory(uri, if (isVideo) "video" else "image")
                 }
             } else {
                 Toast.makeText(this, "No media selected", Toast.LENGTH_SHORT).show()
@@ -66,7 +65,8 @@ class MainActivity5 : AppCompatActivity() {
             if (result.resultCode == RESULT_OK) {
                 photoUri?.let { uri ->
                     sendBroadcast(Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE, uri))
-                    uploadStoryToFirebase(uri, "image")
+                    uploadStory(uri, "image")
+
                 }
             }
         }
@@ -75,13 +75,9 @@ class MainActivity5 : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContentView(R.layout.activity_main5)
-        val userid = FirebaseAuth.getInstance().currentUser?.uid
 
-        if (userid != null) {
-            UserRef = FirebaseDatabase.getInstance().getReference("Users").child(userid)
-        } else {
-            Log.w("MainActivity5", "No logged-in user. Skipping UserRef initialization.")
-        }
+
+
 
         val search = findViewById<ImageView>(R.id.search_bar)
         val dm = findViewById<ImageView>(R.id.message_icon)
@@ -93,32 +89,41 @@ class MainActivity5 : AppCompatActivity() {
         val addstory = findViewById<ImageView>(R.id.addStoryIcon)
         val profile = findViewById<CircleImageView>(R.id.profile)
         val storyRecyclerView = findViewById<RecyclerView>(R.id.storyRecyclerView)
+        val userId = getSharedPreferences("user_session", MODE_PRIVATE)
+            .getString("userId", "")
 
-        // Load profile picture
-        val uid = FirebaseAuth.getInstance().currentUser?.uid
-        if (uid == null) {
-            Log.e("MainActivity5", "User is not logged in with Firebase")
-            return
-        }
-        if (uid != null) {
-            val databaseRef = FirebaseDatabase.getInstance().getReference("Users").child(uid)
-            databaseRef.child("dp").get()
-                .addOnSuccessListener { snapshot ->
-                    if (snapshot.exists()) {
-                        val imageString = snapshot.getValue(String::class.java)
-                        if (imageString != null) {
-                            val imageBytes = Base64.decode(imageString, Base64.DEFAULT)
-                            val bitmap =
-                                BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
-                            profile.setImageBitmap(bitmap)
-                            profile_bottom.setImageBitmap(bitmap)
-                        }
+        if (!userId.isNullOrEmpty()) {
+            val request = object : StringRequest(Method.POST, "http://sociallyah.atwebpages.com/getdp.php",
+                { response ->
+                    Toast.makeText(this, "RAW: " + response, Toast.LENGTH_LONG).show()
+                    Log.e("DP_FETCH", "RAW RESPONSE: [$response]")
+
+
+                    if (response.isNotEmpty()) {
+                        val bytes = Base64.decode(response.trim(), Base64.DEFAULT)
+                        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                        profile.setImageBitmap(bitmap)
+                        profile_bottom.setImageBitmap(bitmap)
+                    }
+                },
+                { error ->
+                    runOnUiThread {
+                        Toast.makeText(this, "Error: ${error.message}", Toast.LENGTH_LONG).show()
                     }
                 }
-                .addOnFailureListener {
-                    Log.e("Firebase", "Error: ${it.message}")
+            ) {
+                override fun getParams(): MutableMap<String, String> {
+                    return hashMapOf("userId" to userId)
                 }
+            }
+
+            Volley.newRequestQueue(this).add(request)
+        } else {
+            Toast.makeText(this, "UserId is empty", Toast.LENGTH_LONG).show()
         }
+
+
+
         val storyList = mutableListOf<Story>()
         storyRecyclerView.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
 
@@ -129,96 +134,18 @@ class MainActivity5 : AppCompatActivity() {
         }
         storyRecyclerView.adapter = storyAdapter
 
-        val followingRef = FirebaseDatabase.getInstance().getReference("Following").child(uid!!)
-        val storiesRef = FirebaseDatabase.getInstance().getReference("stories")
 
-        followingRef.get().addOnSuccessListener { snapshot ->
-            val followingIDs = mutableListOf<String>()
-            for (child in snapshot.children) {
-                followingIDs.add(child.key.toString())
-            }
-            storyList.clear()
 
-            var completedRequests = 0
-            val totalRequests = followingIDs.size
 
-            for (id in followingIDs) {
-                storiesRef.child(id).get().addOnSuccessListener { storySnapshot ->
-                    if (storySnapshot.exists()) {
-                        var latestStory: Story? = null
-                        for (storyChild in storySnapshot.children) {
-                            val story = storyChild.getValue(Story::class.java)
-                            if (story != null && !story.mediaBase64.isNullOrEmpty()) {
-                                story.userId = id
-                                if (latestStory == null || story.timestamp > latestStory!!.timestamp) {
-                                    latestStory = story
-                                }
-                            }
-                        }
-                        if (latestStory != null) {
-                            storyList.add(latestStory)
-                        }
-                    }
 
-                    completedRequests++
-                    if (completedRequests == totalRequests) {
-                        storyList.sortByDescending { it.timestamp }
-                        storyAdapter.notifyDataSetChanged()
-                    }
-
-                }.addOnFailureListener {
-                    completedRequests++
-                    if (completedRequests == totalRequests) {
-                        storyList.sortByDescending { it.timestamp }
-                        storyAdapter.notifyDataSetChanged()
-                    }
-                }
-            }
-        }
 
       val postRecycler= findViewById<RecyclerView>(R.id.postRecycler)
         postRecycler.layoutManager = LinearLayoutManager(this, LinearLayoutManager.VERTICAL, false)
         val postList = mutableListOf<Post>()
         val postAdapter = FeedPostAdapter(postList)
         postRecycler.adapter = postAdapter
-        val currentUid = FirebaseAuth.getInstance().currentUser?.uid ?: return
-        val postsRef = FirebaseDatabase.getInstance().getReference("Posts")
 
-        followingRef.get().addOnSuccessListener { snapshot ->
-            val followedIds = mutableListOf<String>()
-            for (child in snapshot.children) {
-                followedIds.add(child.key.toString())
-            }
-            followedIds.add(currentUid) // include your own posts
 
-            postList.clear()
-            var completedRequests = 0
-            val totalRequests = followedIds.size
-
-            for (id in followedIds) {
-                postsRef.child(id).get().addOnSuccessListener { postSnapshot ->
-                    if (postSnapshot.exists()) {
-                        for (postNode in postSnapshot.children) {
-                            val post = postNode.getValue(Post::class.java)
-                            if (post != null) {
-                                postList.add(post)
-                            }
-                        }
-                    }
-                    completedRequests++
-                    if (completedRequests == totalRequests) {
-                        postList.sortByDescending { it.timestamp }
-                        postAdapter.notifyDataSetChanged()
-                    }
-                }.addOnFailureListener {
-                    completedRequests++
-                    if (completedRequests == totalRequests) {
-                        postList.sortByDescending { it.timestamp }
-                        postAdapter.notifyDataSetChanged()
-                    }
-                }
-            }
-        }
 
         // Upload image/video story
         addstory.setOnClickListener {
@@ -227,10 +154,10 @@ class MainActivity5 : AppCompatActivity() {
 
         // Open last story
         your_story.setOnClickListener {
-            val user = FirebaseAuth.getInstance().currentUser
-            if (user != null) {
+
+            if (userId != null) {
                 val intent = Intent(this, ViewStory::class.java)
-                intent.putExtra("userId", user.uid)
+
                 startActivity(intent)
             }
         }
@@ -274,52 +201,32 @@ class MainActivity5 : AppCompatActivity() {
         NotificationHelper.startScreenshotListeners(this)
     }
 
-    private fun uploadStoryToFirebase(uri: Uri, mediaType: String) {
-        try {
-            val inputStream = contentResolver.openInputStream(uri)
-            val bytes = inputStream?.readBytes()
+    fun uploadStory(uri: Uri, type: String) {
+        val bytes = contentResolver.openInputStream(uri)?.readBytes()
+        val base64 = Base64.encodeToString(bytes, Base64.DEFAULT)
 
-            if (bytes == null || bytes.isEmpty()) {
-                Toast.makeText(this, "Unable to read file", Toast.LENGTH_SHORT).show()
-                return
+
+
+        val request = object : StringRequest(
+            Method.POST,
+            "http://sociallyah.atwebpages.com/upload_story.php",
+            { response -> Log.d("UPLOAD", response) },
+            { error -> Log.d("UPLOAD_ERROR", error.toString()) }
+        ) {
+            override fun getParams(): MutableMap<String, String> {
+                val prefs = getSharedPreferences("user_session", MODE_PRIVATE)
+                val userId = prefs.getString("userId", "") ?: ""
+                val params = HashMap<String, String>()
+                params["userId"] = userId
+                params["media"] = base64
+                params["type"] = type
+                return params
             }
-
-            if (bytes.size > 3_000_000) {
-                Toast.makeText(this, "File too large! Keep under ~3MB.", Toast.LENGTH_SHORT).show()
-                return
-            }
-
-            val base64String = Base64.encodeToString(bytes, Base64.DEFAULT)
-            val user = FirebaseAuth.getInstance().currentUser ?: return
-
-            val ref = FirebaseDatabase.getInstance()
-                .getReference("stories")
-                .child(user.uid)
-                .push()
-
-            val story = Story(
-                id = ref.key,
-                userId = user.uid,
-                mediaBase64 = base64String,
-                mediaType = mediaType,
-                timestamp = System.currentTimeMillis()
-            )
-
-            ref.setValue(story).addOnCompleteListener {
-                if (it.isSuccessful) {
-                    Toast.makeText(this, "Story uploaded!", Toast.LENGTH_SHORT).show()
-                } else {
-                    Toast.makeText(this, "Failed to upload story", Toast.LENGTH_SHORT).show()
-                }
-            }
-        } catch (e: IOException) {
-            e.printStackTrace()
-            Toast.makeText(this, "Error reading file", Toast.LENGTH_SHORT).show()
-        } catch (e: Exception) {
-            e.printStackTrace()
-            Toast.makeText(this, "Error uploading story", Toast.LENGTH_SHORT).show()
         }
+
+        Volley.newRequestQueue(this).add(request)
     }
+
 
     private fun openCamera() {
         val values = ContentValues().apply {
@@ -337,11 +244,10 @@ class MainActivity5 : AppCompatActivity() {
     }
     override fun onStart(){
         super.onStart()
-        UserRef?.child("status")?.setValue("online")
-        UserRef?.child("status")?.onDisconnect()?.setValue("offline")
+
     }
     override fun onStop(){
         super.onStop()
-        UserRef?.child("status")?.setValue("offline")
+
     }
 }
