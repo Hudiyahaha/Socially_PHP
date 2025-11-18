@@ -23,12 +23,15 @@ import androidx.recyclerview.widget.RecyclerView
 import com.android.volley.toolbox.StringRequest
 import com.android.volley.toolbox.Volley
 import de.hdodenhof.circleimageview.CircleImageView
+import org.json.JSONArray
 import java.io.IOException
 
 
 class MainActivity5 : AppCompatActivity() {
 
     private var photoUri: Uri? = null
+    private lateinit var storyAdapter: StoryAdapter
+
 
 
 
@@ -127,19 +130,21 @@ class MainActivity5 : AppCompatActivity() {
         val storyList = mutableListOf<Story>()
         storyRecyclerView.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
 
-        val storyAdapter = StoryAdapter(storyList) { story ->
+        storyAdapter = StoryAdapter(storyList) { story ->
             val intent = Intent(this, ViewStory::class.java)
             intent.putExtra("userId", story.userId)
             startActivity(intent)
         }
         storyRecyclerView.adapter = storyAdapter
+        fetchStories()
 
 
 
 
 
 
-      val postRecycler= findViewById<RecyclerView>(R.id.postRecycler)
+
+        val postRecycler= findViewById<RecyclerView>(R.id.postRecycler)
         postRecycler.layoutManager = LinearLayoutManager(this, LinearLayoutManager.VERTICAL, false)
         val postList = mutableListOf<Post>()
         val postAdapter = FeedPostAdapter(postList)
@@ -210,7 +215,10 @@ class MainActivity5 : AppCompatActivity() {
         val request = object : StringRequest(
             Method.POST,
             "http://sociallyah.atwebpages.com/upload_story.php",
-            { response -> Log.d("UPLOAD", response) },
+            { response ->
+                Log.d("UPLOAD", response)
+                Toast.makeText(this, "Story uploaded", Toast.LENGTH_SHORT).show()
+            },
             { error -> Log.d("UPLOAD_ERROR", error.toString()) }
         ) {
             override fun getParams(): MutableMap<String, String> {
@@ -226,6 +234,59 @@ class MainActivity5 : AppCompatActivity() {
 
         Volley.newRequestQueue(this).add(request)
     }
+
+    fun fetchStories() {
+        val prefs = getSharedPreferences("user_session", MODE_PRIVATE)
+        val currentUserId = prefs.getString("userId", "") ?: return
+
+        val request = object : StringRequest(
+            Method.POST,
+            "http://sociallyah.atwebpages.com/get_story.php",
+            { response ->
+                try {
+                    val jsonArray = JSONArray(response)
+                    val storyList = mutableListOf<Story>()
+
+                    for (i in 0 until jsonArray.length()) {
+                        val obj = jsonArray.getJSONObject(i)
+                        val storyUserId = obj.getString("userId")
+
+                        // Skip your own story
+                        if (storyUserId == currentUserId) continue
+
+                        storyList.add(
+                            Story(
+                                id = obj.getString("id"),
+                                userId = storyUserId,
+                                mediaBase64 = obj.getString("media"),
+                                mediaType = obj.getString("type"),
+                                timestamp = obj.getLong("timestamp"),
+                                username = obj.getString("username"),
+                                dp = obj.getString("dp")
+                            )
+                        )
+                    }
+
+                    storyAdapter.apply {
+                        stories.clear()
+                        stories.addAll(storyList)
+                        notifyDataSetChanged()
+                    }
+
+                } catch (e: Exception) {
+                    Log.e("FETCH_STORIES", "JSON parse error", e)
+                }
+            },
+            { error -> Log.e("FETCH_STORIES", error.toString()) }
+        ) {
+            override fun getParams(): MutableMap<String, String> {
+                return hashMapOf("userId" to currentUserId)
+            }
+        }
+
+        Volley.newRequestQueue(this).add(request)
+    }
+
 
 
     private fun openCamera() {

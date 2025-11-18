@@ -13,9 +13,10 @@ import android.widget.TextView
 import android.widget.Toast
 import android.widget.VideoView
 import androidx.appcompat.app.AppCompatActivity
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.FirebaseDatabase
+import com.android.volley.toolbox.StringRequest
+import com.android.volley.toolbox.Volley
 import de.hdodenhof.circleimageview.CircleImageView
+import org.json.JSONArray
 import java.io.File
 
 class ViewStory : AppCompatActivity() {
@@ -23,8 +24,10 @@ class ViewStory : AppCompatActivity() {
     private lateinit var storyImage: ImageView
     private lateinit var storyVideo: VideoView
     private lateinit var cross: ImageView
+    private lateinit var profile: CircleImageView
+    private lateinit var usernameView: TextView
 
-    private var stories = mutableListOf<Map<String, Any>>()
+    private var stories = mutableListOf<Story>()
     private var currentIndex = 0
     private val handler = Handler(Looper.getMainLooper())
 
@@ -35,96 +38,92 @@ class ViewStory : AppCompatActivity() {
         storyImage = findViewById(R.id.storyImageView)
         storyVideo = findViewById(R.id.storyVideoView)
         cross = findViewById(R.id.cross)
-
-        val currentUser = FirebaseAuth.getInstance().currentUser
-        if (currentUser == null) {
-            Toast.makeText(this, "User not logged in", Toast.LENGTH_SHORT).show()
-            return
-        }
+        profile = findViewById(R.id.profile)
+        usernameView = findViewById(R.id.username)
 
         cross.setOnClickListener { finish() }
 
-        val ref = FirebaseDatabase.getInstance()
-            .getReference("stories")
-            .child(currentUser.uid)
-
-        val storyAgeLimit = 24 * 60 * 60 * 1000L // 24 hours in milliseconds
-        val now = System.currentTimeMillis()
-
-        ref.get().addOnSuccessListener { snapshot ->
-            if (!snapshot.exists()) {
-                Toast.makeText(this, "No stories found!", Toast.LENGTH_LONG).show()
-                return@addOnSuccessListener
-            }
-
-            // Filter and delete expired stories
-            for (child in snapshot.children) {
-                val map = child.value as? Map<String, Any> ?: continue
-                val timestamp = map["timestamp"] as? Long ?: 0L
-
-                if (now - timestamp > storyAgeLimit) {
-                    // Delete old story
-                    child.ref.removeValue()
-                } else {
-                    // Keep valid story
-                    stories.add(map)
-                }
-            }
-
-            if (stories.isNotEmpty()) {
-                // Sort stories by timestamp (oldest → newest)
-                stories.sortBy { it["timestamp"] as? Long ?: 0L }
-                showStory(0)
-            } else {
-                Toast.makeText(this, "All stories expired!", Toast.LENGTH_SHORT).show()
-                finish()
-            }
-
-        }.addOnFailureListener {
-            Toast.makeText(this, "Failed to load stories", Toast.LENGTH_SHORT).show()
+        val prefs = getSharedPreferences("user_session", MODE_PRIVATE)
+        val userId = intent.getStringExtra("userId") ?: prefs.getString("userId", null) ?: run {
+            Toast.makeText(this, "User ID missing", Toast.LENGTH_SHORT).show()
+            finish()
+            return
         }
 
-        val profile = findViewById<CircleImageView>(R.id.profile)
 
-        // Load profile picture
-        val uid = FirebaseAuth.getInstance().currentUser?.uid
-        if (uid != null) {
-            val databaseRef = FirebaseDatabase.getInstance().getReference("Users").child(uid)
-            databaseRef.child("dp").get()
-                .addOnSuccessListener { snapshot ->
-                    if (snapshot.exists()) {
-                        val imageString = snapshot.getValue(String::class.java)
-                        if (imageString != null) {
-                            val imageBytes = Base64.decode(imageString, Base64.DEFAULT)
-                            val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
-                            profile.setImageBitmap(bitmap)
+        fetchStories(userId)
+    }
 
+    private fun fetchStories(userId: String) {
+        val request = object : StringRequest(
+            Method.POST,
+            "http://sociallyah.atwebpages.com/get_story.php",
+            { response ->
+                try {
+                    val jsonArray = JSONArray(response)
+                    val now = System.currentTimeMillis() / 1000 // seconds
+                    val storyAgeLimit = 24 * 60 * 60 // 24 hours in seconds
+
+                    for (i in 0 until jsonArray.length()) {
+                        val obj = jsonArray.getJSONObject(i)
+                        val timestamp = obj.getLong("timestamp")
+                        if (now - timestamp <= storyAgeLimit) {
+                            stories.add(
+                                Story(
+                                    id = obj.getString("id"),
+                                    userId = obj.getString("userId"),
+                                    mediaBase64 = obj.getString("media"),
+                                    mediaType = obj.getString("type"),
+                                    timestamp = timestamp,
+                                    username = obj.optString("username", "Unknown"),
+                                    dp = obj.optString("dp")
+                                )
+                            )
                         }
                     }
-                }
-                .addOnFailureListener {
-                    Log.e("Firebase", "Error: ${it.message}")
-                }
-        }
-        val name=findViewById<TextView>(R.id.username)
-        val user = FirebaseAuth.getInstance().currentUser
-        if (user != null) {
-            val uid = user.uid
-            val ref = FirebaseDatabase.getInstance().getReference("Users").child(uid)
 
-            ref.get().addOnSuccessListener { snapshot ->
-                if (snapshot.exists()) {
-                    val username = snapshot.child("uname").getValue(String::class.java)
-                    if (username != null) {
-                        name.text = username
+                    if (stories.isNotEmpty()) {
+                        showStory(0)
+                        loadProfile(stories[0].dp, stories[0].username)
                     } else {
-                        name.text = "Unknown User"
+                        Toast.makeText(this, "No stories available", Toast.LENGTH_SHORT).show()
+                        finish()
                     }
+
+                } catch (e: Exception) {
+                    Log.e("FETCH_STORIES", "JSON parse error", e)
+                    Toast.makeText(this, "Failed to parse stories", Toast.LENGTH_SHORT).show()
+                    finish()
                 }
-            }.addOnFailureListener {
-                Log.e("Firebase", "Failed to get username", it)
+            },
+            { error ->
+                Log.e("FETCH_STORIES", error.toString())
+                Toast.makeText(this, "Failed to fetch stories", Toast.LENGTH_SHORT).show()
+                finish()
+            }
+        ) {
+            override fun getParams(): MutableMap<String, String> {
+                return hashMapOf("userId" to userId)
             }
         }
+
+        Volley.newRequestQueue(this).add(request)
+    }
+
+    private fun loadProfile(dpBase64: String?, username: String?) {
+        if (!dpBase64.isNullOrEmpty()) {
+            try {
+                val bytes = Base64.decode(dpBase64, Base64.DEFAULT)
+                val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                profile.setImageBitmap(bitmap)
+            } catch (e: Exception) {
+                profile.setImageResource(R.drawable.me)
+            }
+        } else {
+            profile.setImageResource(R.drawable.me)
+        }
+
+        usernameView.text = username ?: "Unknown"
     }
 
     private fun showStory(index: Int) {
@@ -133,14 +132,12 @@ class ViewStory : AppCompatActivity() {
             return
         }
 
+        currentIndex = index
         val story = stories[index]
-        val base64String = story["mediaBase64"] as? String ?: return
-        val mediaType = story["mediaType"] as? String ?: "image"
 
         try {
-            val bytes = Base64.decode(base64String, Base64.DEFAULT)
-
-            if (mediaType == "image") {
+            val bytes = Base64.decode(story.mediaBase64, Base64.DEFAULT)
+            if (story.mediaType == "image") {
                 val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                 storyImage.setImageBitmap(bitmap)
                 storyImage.visibility = View.VISIBLE
@@ -149,7 +146,7 @@ class ViewStory : AppCompatActivity() {
                 // Move to next story after 5 seconds
                 handler.postDelayed({ showStory(index + 1) }, 5000)
 
-            } else if (mediaType == "video") {
+            } else if (story.mediaType == "video") {
                 val tempFile = File.createTempFile("story_temp", ".mp4", cacheDir)
                 tempFile.writeBytes(bytes)
                 storyVideo.setVideoURI(Uri.fromFile(tempFile))
@@ -162,6 +159,7 @@ class ViewStory : AppCompatActivity() {
 
                 storyVideo.start()
             }
+
         } catch (e: Exception) {
             e.printStackTrace()
             Toast.makeText(this, "Error showing story", Toast.LENGTH_SHORT).show()
