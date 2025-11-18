@@ -27,12 +27,11 @@ class MainActivity : AppCompatActivity() {
     private fun decideNextScreen() {
         val prefs = getSharedPreferences("user_session", MODE_PRIVATE)
         val loggedIn = prefs.getBoolean("isLoggedIn", false)
-        val firstTime = prefs.getBoolean("isFirstTime", true)
 
-        when {
-            !loggedIn -> startActivity(Intent(this, MainActivity4::class.java))
-            firstTime -> startActivity(Intent(this, MainActivity2::class.java))
-            else -> startActivity(Intent(this, MainActivity5::class.java))
+        if (loggedIn) {
+            startActivity(Intent(this, MainActivity5::class.java))  // home
+        } else {
+            startActivity(Intent(this, MainActivity4::class.java))  // login
         }
         finish()
     }

@@ -16,6 +16,7 @@ import com.android.volley.Request
 import com.android.volley.toolbox.StringRequest
 import com.android.volley.toolbox.Volley
 import de.hdodenhof.circleimageview.CircleImageView
+import org.json.JSONObject
 
 class MainActivity2 : AppCompatActivity() {
 
@@ -57,25 +58,49 @@ class MainActivity2 : AppCompatActivity() {
         }
 
         signup.setOnClickListener {
-            val em=email.text.toString()
-            val pa=pass.text.toString()
-            val uname=name.text.toString()
+            val em = email.text.toString()
+            val pa = pass.text.toString()
+            val uname = name.text.toString()
+
             if (em.isEmpty()) {
                 email.error = "Email required"
+                return@setOnClickListener
             }
             if (pa.isEmpty()) {
                 pass.error = "Password required"
+                return@setOnClickListener
             }
             if (img.isEmpty()) {
                 Toast.makeText(this, "Select Profile Image", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
+
             val request = object : StringRequest(
                 Request.Method.POST,
-                "http://192.168.100.204/socially/signup.php",
+                "http://sociallyah.atwebpages.com/signup.php",
                 { response ->
-                    Toast.makeText(this, response, Toast.LENGTH_LONG).show()
-                    finish()
+
+                    try {
+                        val json = JSONObject(response)
+
+                        if (json.getInt("status") == 1) {
+
+                            // Signup successful → move to MainActivity3
+                            val intent = Intent(this, MainActivity3::class.java)
+                            intent.putExtra("uid", json.getString("uid"))
+                            intent.putExtra("id", json.getString("id"))
+                            startActivity(intent)
+                            finish()
+
+                        } else {
+                            // Signup failed
+                            Toast.makeText(this, json.getString("message"), Toast.LENGTH_LONG).show()
+                        }
+
+                    } catch (e: Exception) {
+                        Toast.makeText(this, "Invalid server response", Toast.LENGTH_LONG).show()
+                    }
+
                 },
                 { error ->
                     Toast.makeText(this, error.toString(), Toast.LENGTH_LONG).show()
@@ -86,7 +111,7 @@ class MainActivity2 : AppCompatActivity() {
                     params["username"] = uname
                     params["email"] = em
                     params["password"] = pa
-                    params["image"]=img
+                    params["image"] = img
                     return params
                 }
             }

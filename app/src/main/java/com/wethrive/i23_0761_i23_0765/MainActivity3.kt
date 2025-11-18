@@ -5,15 +5,14 @@ import android.graphics.BitmapFactory
 import android.os.Bundle
 import android.util.Base64
 import android.util.Log
-import android.widget.ImageView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
+import com.android.volley.toolbox.StringRequest
+import com.android.volley.toolbox.Volley
 import com.google.android.material.button.MaterialButton
 import de.hdodenhof.circleimageview.CircleImageView
-
 
 class MainActivity3 : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -21,33 +20,49 @@ class MainActivity3 : AppCompatActivity() {
         enableEdgeToEdge()
         setContentView(R.layout.activity_main3)
 
-        var btn=findViewById<MaterialButton>(R.id.button)
-        var switch_akont=findViewById<TextView>(R.id.switch_account)
-        var profile=findViewById<CircleImageView>(R.id.profile)
+        val btn = findViewById<MaterialButton?>(R.id.button)
+        val switchAccount = findViewById<TextView?>(R.id.switch_account)
+        val profile = findViewById<CircleImageView?>(R.id.profile)
+
         val prefs = getSharedPreferences("user_session", MODE_PRIVATE)
-        val image = prefs.getString("image", "")
-        val username = prefs.getString("username", "")
-        val email = prefs.getString("email", "")
+        val userId = prefs.getString("userId", "") ?: ""
 
-        if (!image.isNullOrEmpty()) {
-            val bytes = Base64.decode(image, Base64.DEFAULT)
-            val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-            profile.setImageBitmap(bitmap)
+        if (!userId.isNullOrEmpty()) {
+            val request = object : StringRequest(Method.POST, "http://sociallyah.atwebpages.com/getdp.php",
+                { response ->
+                    Toast.makeText(this, "RAW: " + response, Toast.LENGTH_LONG).show()
+                    Log.e("DP_FETCH", "RAW RESPONSE: [$response]")
+
+
+                    if (response.isNotEmpty()) {
+                        val bytes = Base64.decode(response.trim(), Base64.DEFAULT)
+                        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                        profile.setImageBitmap(bitmap)
+
+                    }
+                },
+                { error ->
+                    runOnUiThread {
+                        Toast.makeText(this, "Error: ${error.message}", Toast.LENGTH_LONG).show()
+                    }
+                }
+            ) {
+                override fun getParams(): MutableMap<String, String> {
+                    return hashMapOf("userId" to userId)
+                }
+            }
+
+            Volley.newRequestQueue(this).add(request)
+        } else {
+            Toast.makeText(this, "UserId is empty", Toast.LENGTH_LONG).show()
         }
-
-
-
-        btn.setOnClickListener{
-            var intent= Intent(this, MainActivity5::class.java)
-            startActivity(intent)
+        btn?.setOnClickListener {
+            startActivity(Intent(this, MainActivity5::class.java))
             finish()
         }
 
-        switch_akont.setOnClickListener {
-
-            val intent = Intent(this, MainActivity4::class.java)
-            //intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
-            startActivity(intent)
+        switchAccount?.setOnClickListener {
+            startActivity(Intent(this, MainActivity4::class.java))
             finish()
         }
     }
