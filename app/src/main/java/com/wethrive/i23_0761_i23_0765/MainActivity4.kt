@@ -49,7 +49,7 @@ class MainActivity4 : AppCompatActivity() {
                     Toast.makeText(this, response, Toast.LENGTH_LONG).show()
 
                     val json = JSONObject(response)
-                    Log.e("LOGIN", "UID RECEIVED = " + json.getString("uid"))
+
 
                     if (json.getInt("status") == 1) {
 

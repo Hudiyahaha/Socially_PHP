@@ -133,9 +133,10 @@ class MainActivity5 : AppCompatActivity() {
 
         val postRecycler= findViewById<RecyclerView>(R.id.postRecycler)
         postRecycler.layoutManager = LinearLayoutManager(this, LinearLayoutManager.VERTICAL, false)
-        postAdapter = FeedPostAdapter(postList)
+        postAdapter = FeedPostAdapter(postList, userId,this)
         postRecycler.adapter = postAdapter
         fetchPosts()
+
 
 
 
@@ -313,7 +314,7 @@ class MainActivity5 : AppCompatActivity() {
                         val mediaUrl = obj.getString("media")      // URL from i.php
                         val mediaType = obj.getString("media_type")
                         val dpUrl = obj.optString("dp", "")        // URL from i.php
-
+                        Log.d("FEED", "Post #$i -> mediaUrl: $mediaUrl, mediaType: $mediaType, dp length: ${dpUrl.length}")
                         postList.add(
                             Post(
                                 postId = obj.getString("post_id"),
@@ -324,12 +325,12 @@ class MainActivity5 : AppCompatActivity() {
                                 username = obj.optString("username", ""),
                                 caption = "",                         // add if available later
                                 userProfileBase64 = dpUrl,            // URL now
-                                likes = mutableListOf()
                             )
                         )
                     }
 
                     postAdapter.notifyDataSetChanged()
+                    postAdapter.fetchLikesForPosts()
 
                 } catch (e: Exception) {
                     e.printStackTrace()
