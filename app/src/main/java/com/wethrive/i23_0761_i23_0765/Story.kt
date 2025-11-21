@@ -5,5 +5,7 @@ data class Story(
     var userId: String? = null,
     var mediaBase64: String? = null,
     var mediaType: String? = null,
-    var timestamp: Long = 0
+    var timestamp: Long = 0,
+    var username: String? = null,
+    var dp: String? = null
 )
