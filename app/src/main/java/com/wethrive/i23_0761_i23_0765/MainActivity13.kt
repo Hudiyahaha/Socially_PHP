@@ -9,19 +9,22 @@ import android.widget.Button
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.recyclerview.widget.RecyclerView
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.DataSnapshot
-import com.google.firebase.database.DatabaseError
-import com.google.firebase.database.FirebaseDatabase
-import com.google.firebase.database.ValueEventListener
+import com.android.volley.Request
+import com.android.volley.Request.Method
+import com.android.volley.toolbox.JsonArrayRequest
+import com.android.volley.toolbox.StringRequest
+import com.android.volley.toolbox.Volley
 import de.hdodenhof.circleimageview.CircleImageView
 
 class MainActivity13 : AppCompatActivity() {
+    private lateinit var uid: String
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -45,141 +48,55 @@ class MainActivity13 : AppCompatActivity() {
         val following= findViewById<TextView>(R.id.following)
         val followers_screen= findViewById<LinearLayout>(R.id.follower_screen)
         val following_screen= findViewById<LinearLayout>(R.id.following_screen)
-
-
-
-
-
-        val uid = FirebaseAuth.getInstance().currentUser?.uid
-
-        if (uid != null) {
-            val databaseRef = FirebaseDatabase.getInstance().getReference("Users").child(uid)
-
-            databaseRef.child("bio").get().addOnSuccessListener {
-                if(it.exists())
-                {
-                    val biography= it.getValue(String::class.java)
-                    bio.text=biography
-                }
+        val prefs = getSharedPreferences("user_session", MODE_PRIVATE)
+        uid = prefs.getString("userId", "")?.takeIf { it.isNotEmpty() }
+            ?: run {
+                Toast.makeText(this, "UserId is empty", Toast.LENGTH_LONG).show()
+                return
             }
 
-// YAHAN PY DATABASE SY UTH K NUMBER OF POSTS AUR FOLLOWERS AUR FOLLOWING AARHY HAIN
-            var ref=FirebaseDatabase.getInstance().getReference("Followers").child(uid)
-
-           ref.addListenerForSingleValueEvent(object : ValueEventListener {
-                override fun onDataChange(snapshot: DataSnapshot) {
-                    val count = snapshot.childrenCount
-                    followers.text = count.toString()
-                }
-
-                override fun onCancelled(error: DatabaseError) {
-                    // Handle error if needed
-                    followers.text="-1"
-                }
-            })
-
-             ref=FirebaseDatabase.getInstance().getReference("Following").child(uid)
-
-            ref.addListenerForSingleValueEvent(object : ValueEventListener {
-                override fun onDataChange(snapshot: DataSnapshot) {
-                    val count = snapshot.childrenCount
-                    following.text = count.toString()
-                }
-
-                override fun onCancelled(error: DatabaseError) {
-                    // Handle error if needed
-                    following.text="-1"
-                }
-            })
-
-            ref=FirebaseDatabase.getInstance().getReference("Posts").child(uid)
-
-            ref.addListenerForSingleValueEvent(object : ValueEventListener {
-                override fun onDataChange(snapshot: DataSnapshot) {
-                    val count = snapshot.childrenCount
-                    posts.text = count.toString()
-                }
-
-                override fun onCancelled(error: DatabaseError) {
-                    // Handle error if needed
-                    posts.text="-1"
-                }
-            })
-//----------------------------------------------------------------------------separator
+        if (!uid.isNullOrEmpty()) {
+            val request = object : StringRequest(Method.POST, "http://sociallyah.atwebpages.com/getdp.php",
+                { response ->
+                    Toast.makeText(this, "RAW: " + response, Toast.LENGTH_LONG).show()
+                    Log.e("DP_FETCH", "RAW RESPONSE: [$response]")
 
 
-            databaseRef.child("uname").get().addOnSuccessListener {
-                if(it.exists())
-                {
-                    val username= it.getValue(String::class.java)
-                    uname.text=username
-                    user.text=username
-
-                }
-            }
-
-            databaseRef.child("dp").get()
-                .addOnSuccessListener { snapshot ->
-                    if (snapshot.exists()) {
-                        val imageString = snapshot.getValue(String::class.java)
-
-                        if (imageString != null) {
-                            val imageBytes = Base64.decode(imageString, Base64.DEFAULT)
-                            val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
-                            profile.setImageBitmap(bitmap)
-                            profile_bottom.setImageBitmap(bitmap)
-                        }
+                    if (response.isNotEmpty()) {
+                        val bytes = Base64.decode(response.trim(), Base64.DEFAULT)
+                        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                        profile.setImageBitmap(bitmap)
+                        profile_bottom.setImageBitmap(bitmap)
+                    }
+                },
+                { error ->
+                    runOnUiThread {
+                        Toast.makeText(this, "Error: ${error.message}", Toast.LENGTH_LONG).show()
                     }
                 }
-                .addOnFailureListener {
-                    Log.e("Firebase", "Error: ${it.message}")
+            ) {
+                override fun getParams(): MutableMap<String, String> {
+                    return hashMapOf("userId" to uid)
                 }
+            }
+
+            Volley.newRequestQueue(this).add(request)
+        } else {
+            Toast.makeText(this, "UserId is empty", Toast.LENGTH_LONG).show()
         }
+
+
+
+
         val recyclerView = findViewById<RecyclerView>(R.id.postRecycler)
         recyclerView.layoutManager = androidx.recyclerview.widget.GridLayoutManager(this, 3)
 
 
-        if (uid != null) {
-            val postsRef = FirebaseDatabase.getInstance()
-                .getReference("Posts").child(uid)
-            val postList = mutableListOf<String>()
-            val postIds = mutableListOf<String>()
-            val mediaTypes = mutableListOf<String>()
-            val adapter = PostAdapter(postList, postIds, mediaTypes) { postId ->
-                val intent = Intent(this, ViewPost::class.java)
-                intent.putExtra("uid", uid)
-                intent.putExtra("postId", postId)
-                startActivity(intent)
-            }
-            recyclerView.adapter = adapter
-
-            postsRef.addValueEventListener(object : com.google.firebase.database.ValueEventListener {
-                override fun onDataChange(snapshot: com.google.firebase.database.DataSnapshot) {
-                    postList.clear()
-                    postIds.clear()
-                    mediaTypes.clear()
-                    for (postSnapshot in snapshot.children) {
-                        val mediaList = postSnapshot.child("mediaBase64List").children
-                        val firstMedia = mediaList.firstOrNull()?.getValue(String::class.java)
-                        val mediaType = postSnapshot.child("mediaType").getValue(String::class.java) ?: "image"
-
-                        if (firstMedia != null) {
-                            postList.add(firstMedia)
-                            postIds.add(postSnapshot.key!!)
-                            mediaTypes.add(mediaType) // ✅ add the correct type
-                        }
-                    }
-                    adapter.notifyDataSetChanged()
-                }
-
-                override fun onCancelled(error: com.google.firebase.database.DatabaseError) {
-                    Log.e("Firebase", "Failed to load posts: ${error.message}")
-                }
-            })
-
-
-
+        if (uid.isNotEmpty()) {
+            loadUserPosts(recyclerView)
         }
+
+
 
         logoutButton.setOnClickListener {
             val prefs = getSharedPreferences("user_session", MODE_PRIVATE)
@@ -237,4 +154,60 @@ class MainActivity13 : AppCompatActivity() {
         }
 
     }
+    private fun loadUserPosts(recyclerView: RecyclerView) {
+        val url = "http://sociallyah.atwebpages.com/get_post.php"
+        val queue = Volley.newRequestQueue(this)
+
+        val postList = mutableListOf<String>()     // Base64 strings
+        val postIds = mutableListOf<String>()      // post IDs
+        val mediaTypes = mutableListOf<String>()   // "image" or "video"
+
+        val adapter = PostAdapter(postList, postIds, mediaTypes) { postId ->
+            val intent = Intent(this, ViewPost::class.java)
+            intent.putExtra("uid", uid)
+            intent.putExtra("postId", postId)
+            startActivity(intent)
+        }
+        recyclerView.adapter = adapter
+
+        val request = object : StringRequest(
+            Method.POST, url,
+            { response ->
+                Log.e("API_RAW", "Response: $response")
+                try {
+                    val array = org.json.JSONArray(response)
+
+                    postList.clear()
+                    postIds.clear()
+                    mediaTypes.clear()
+
+                    for (i in 0 until array.length()) {
+                        val post = array.getJSONObject(i)
+                        val mediaBase64 = post.getString("media") // <-- updated
+                        val type = post.getString("media_type")
+                        val id = post.getString("post_id")
+
+                        postList.add(mediaBase64)
+                        postIds.add(id)
+                        mediaTypes.add(type)
+                    }
+
+                    adapter.notifyDataSetChanged()
+                } catch (e: Exception) {
+                    Log.e("API_PARSE", "Error parsing posts", e)
+                }
+            },
+            { error ->
+                Log.e("API", "Error loading posts: ${error.message}")
+            }
+        ) {
+            override fun getParams(): MutableMap<String, String> {
+                return hashMapOf("userId" to uid)
+            }
+        }
+
+        queue.add(request)
+    }
+
 }
+

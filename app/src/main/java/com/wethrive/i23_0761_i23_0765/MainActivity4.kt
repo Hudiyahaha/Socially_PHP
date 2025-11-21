@@ -45,10 +45,12 @@ class MainActivity4 : AppCompatActivity() {
             val request = object : StringRequest(
                 Method.POST, url,
                 { response ->
-                    Log.d("LOGIN", response)
+
+
                     Toast.makeText(this, response, Toast.LENGTH_LONG).show()
 
                     val json = JSONObject(response)
+                    Log.e("LOGIN", "UID RECEIVED = " + json.getString("uid"))
 
                     if (json.getInt("status") == 1) {
 
@@ -57,8 +59,8 @@ class MainActivity4 : AppCompatActivity() {
                             putBoolean("isLoggedIn", true)
                             putBoolean("isFirstTime", false)
 
-                            putString("id", json.getString("id"))
-                            putString("uid", json.getString("uid"))      // NEW
+
+                            putString("userId", json.getString("uid"))      // NEW
                             putString("username", json.getString("username"))
                             putString("email", json.getString("email"))
                             putString("dp", json.getString("dp"))        // UPDATED

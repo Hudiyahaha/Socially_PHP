@@ -1,5 +1,6 @@
 package com.wethrive.i23_0761_i23_0765
 
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.graphics.BitmapFactory
 import android.util.Base64
@@ -9,14 +10,12 @@ import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.DataSnapshot
-import com.google.firebase.database.DatabaseError
-import com.google.firebase.database.FirebaseDatabase
-import com.google.firebase.database.ValueEventListener
 import de.hdodenhof.circleimageview.CircleImageView
+import com.android.volley.toolbox.StringRequest
+import com.android.volley.toolbox.Volley
 
 class FeedPostAdapter(private val postList: MutableList<Post>) :
     RecyclerView.Adapter<FeedPostAdapter.PostViewHolder>() {
@@ -27,9 +26,11 @@ class FeedPostAdapter(private val postList: MutableList<Post>) :
         val profileImage: CircleImageView = itemView.findViewById(R.id.profile)
         val likeButton: ImageView = itemView.findViewById(R.id.likeButton)
         val likeCount: TextView = itemView.findViewById(R.id.likeCount)
-        // Share button for DM share flow
         val sharePost: ImageView = itemView.findViewById(R.id.sharePost)
 
+        val commentsRecycler: RecyclerView = itemView.findViewById(R.id.commentsRecycler)
+        val commentInput: EditText = itemView.findViewById(R.id.commentInput)
+        val sendComment: ImageView = itemView.findViewById(R.id.sendComment)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PostViewHolder {
@@ -38,128 +39,107 @@ class FeedPostAdapter(private val postList: MutableList<Post>) :
         return PostViewHolder(view)
     }
 
-    override fun onBindViewHolder(holder: PostViewHolder, position: Int) {
+    override fun onBindViewHolder(holder: PostViewHolder, @SuppressLint("RecyclerView") position: Int) {
         val post = postList[position]
-        val currentUid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        val ctx = holder.itemView.context
+        val queue = Volley.newRequestQueue(ctx)
 
-        // Setup inner RecyclerView for post images/videos
+        // --- POST MEDIA ---
         holder.postImagesRecycler.layoutManager =
-            LinearLayoutManager(holder.itemView.context, LinearLayoutManager.HORIZONTAL, false)
+            LinearLayoutManager(ctx, LinearLayoutManager.HORIZONTAL, false)
         holder.postImagesRecycler.adapter =
             PostMediaAdapter(post.mediaBase64List, post.mediaTypeList)
 
-        // Load username and profile pic
-        val userRef = FirebaseDatabase.getInstance().getReference("Users").child(post.userId)
-        userRef.child("uname").get().addOnSuccessListener {
-            holder.username.text = it.getValue(String::class.java) ?: holder.itemView.context.getString(R.string.unknown_user)
-        }
-        userRef.child("dp").get().addOnSuccessListener { snap ->
-            val base64 = snap.getValue(String::class.java)
-            if (!base64.isNullOrEmpty()) {
-                val bytes = Base64.decode(base64, Base64.DEFAULT)
-                val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                holder.profileImage.setImageBitmap(bitmap)
-            }
+        // --- USERNAME ---
+        holder.username.text = post.username ?: "Unknown"
+
+        // --- PROFILE PIC ---
+        if (!post.userProfileBase64.isNullOrEmpty()) {
+            try {
+                val bytes = Base64.decode(post.userProfileBase64, Base64.DEFAULT)
+                val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                holder.profileImage.setImageBitmap(bmp)
+            } catch (e: Exception) {}
         }
 
-        // --- LIKE LOGIC ---
-        val postRef = FirebaseDatabase.getInstance()
-            .getReference("Posts")
-            .child(post.userId)
-            .child(post.postId)
-            .child("likes")
+        // --- LIKE BUTTON UI ---
+        val isLiked = post.likes.contains("1")   // you can replace "1" with actual session user id later
+        holder.likeButton.setImageResource(if (isLiked) R.drawable.heart_filled else R.drawable.like)
+        holder.likeCount.text = "${post.likes.size} likes"
 
-        // Update like button & count UI
-        val likes = post.likes
-        val isLiked = likes.contains(currentUid)
-        holder.likeButton.setImageResource(
-            if (isLiked) R.drawable.heart_filled else R.drawable.like
-        )
-        holder.likeCount.text = holder.itemView.context.getString(R.string.like_count, likes.size)
-
-        // Like button click
+        // --- LIKE CLICK ---
         holder.likeButton.setOnClickListener {
-            if (isLiked) {
-                // Unlike post
-                postRef.get().addOnSuccessListener {
-                    val updatedLikes = likes.toMutableList().apply { remove(currentUid) }
-                    postRef.setValue(updatedLikes)
-                    post.likes = updatedLikes
+            val url = "http://sociallyah.atwebpages.com/like_post.php"
+
+            val request = object : StringRequest(Method.POST, url,
+                { response ->
+                    if (isLiked) post.likes.remove("1") else post.likes.add("1")
                     notifyItemChanged(position)
+                },
+                { error ->
+                    Toast.makeText(ctx, "Like failed", Toast.LENGTH_SHORT).show()
                 }
-            } else {
-                // Like post
-                postRef.get().addOnSuccessListener {
-                    val updatedLikes = likes.toMutableList().apply { add(currentUid) }
-                    postRef.setValue(updatedLikes)
-                    post.likes = updatedLikes
-                    notifyItemChanged(position)
+            ) {
+                override fun getParams(): MutableMap<String, String> {
+                    return hashMapOf(
+                        "postId" to post.postId,
+                        "userId" to post.userId  // or session id
+                    )
                 }
             }
+
+            queue.add(request)
         }
-        // COMMENTS
-        val commentsRecycler = holder.itemView.findViewById<RecyclerView>(R.id.commentsRecycler)
-        val commentInput = holder.itemView.findViewById<EditText>(R.id.commentInput)
-        val sendComment = holder.itemView.findViewById<ImageView>(R.id.sendComment)
 
-        val commentsRef = FirebaseDatabase.getInstance()
-            .getReference("Posts")
-            .child(post.userId)
-            .child(post.postId)
-            .child("comments")
-
-        val commentList = mutableListOf<Comment>()
+        // --- COMMENTS ---
+        val commentList = post.comments
         val commentAdapter = CommentAdapter(commentList)
-        commentsRecycler.layoutManager = LinearLayoutManager(holder.itemView.context)
-        commentsRecycler.adapter = commentAdapter
+        holder.commentsRecycler.layoutManager = LinearLayoutManager(ctx)
+        holder.commentsRecycler.adapter = commentAdapter
 
-        commentsRef.addValueEventListener(object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                commentList.clear()
-                for (commentSnap in snapshot.children) {
-                    val comment = commentSnap.getValue(Comment::class.java)
-                    if (comment != null) commentList.add(comment)
-                }
-                commentAdapter.notifyDataSetChanged()
-            }
+        // Send comment
+        holder.sendComment.setOnClickListener {
+            val txt = holder.commentInput.text.toString().trim()
+            if (txt.isEmpty()) return@setOnClickListener
 
-            override fun onCancelled(error: DatabaseError) {}
-        })
+            val url = "http://sociallyah.atwebpages.com/comment_post.php"
 
-        sendComment.setOnClickListener {
-            val text = commentInput.text.toString().trim()
-            if (text.isNotEmpty()) {
-                val user = FirebaseAuth.getInstance().currentUser
-                val commentId = commentsRef.push().key ?: System.currentTimeMillis().toString()
-                val currentUserId = user?.uid ?: return@setOnClickListener
-
-                val userRef2 = FirebaseDatabase.getInstance().getReference("Users").child(currentUserId)
-                userRef2.child("uname").get().addOnSuccessListener { unameSnap ->
-                    val uname = unameSnap.getValue(String::class.java) ?: "User"
-                    val comment = Comment(
-                        commentId = commentId,
-                        userId = currentUserId,
-                        username = uname,
-                        text = text,
+            val request = object : StringRequest(Method.POST, url,
+                {
+                    val newComment = Comment(
+                        commentId = System.currentTimeMillis().toString(),
+                        userId = post.userId,
+                        username = post.username ?: "User",
+                        text = txt,
                         timestamp = System.currentTimeMillis()
                     )
-                    commentsRef.child(commentId).setValue(comment)
-                    commentInput.text.clear()
+                    commentList.add(newComment)
+                    commentAdapter.notifyDataSetChanged()
+                    holder.commentInput.text.clear()
+                },
+                {
+                    Toast.makeText(ctx, "Comment failed", Toast.LENGTH_SHORT).show()
+                }
+            ) {
+                override fun getParams(): MutableMap<String, String> {
+                    return hashMapOf(
+                        "postId" to post.postId,
+                        "userId" to post.userId,
+                        "comment" to txt
+                    )
                 }
             }
+
+            queue.add(request)
         }
 
-        // --- SHARE POST IN DM FLOW ---
+        // --- SHARE POST ---
         holder.sharePost.setOnClickListener {
-            val ctx = holder.itemView.context
-            val intent = Intent(ctx, MainActivity8::class.java).apply {
-                putExtra("sharePostOwnerId", post.userId)
-                putExtra("sharePostId", post.postId)
-            }
+            val intent = Intent(ctx, MainActivity8::class.java)
+            intent.putExtra("sharePostOwnerId", post.userId)
+            intent.putExtra("sharePostId", post.postId)
             ctx.startActivity(intent)
         }
-
-
     }
 
     override fun getItemCount(): Int = postList.size

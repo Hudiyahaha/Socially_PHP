@@ -20,6 +20,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.android.volley.Request
 import com.android.volley.toolbox.StringRequest
 import com.android.volley.toolbox.Volley
 import de.hdodenhof.circleimageview.CircleImageView
@@ -31,6 +32,8 @@ class MainActivity5 : AppCompatActivity() {
 
     private var photoUri: Uri? = null
     private lateinit var storyAdapter: StoryAdapter
+    private lateinit var postAdapter: FeedPostAdapter
+    private val postList = mutableListOf<Post>()
 
 
 
@@ -140,15 +143,11 @@ class MainActivity5 : AppCompatActivity() {
 
 
 
-
-
-
-
         val postRecycler= findViewById<RecyclerView>(R.id.postRecycler)
         postRecycler.layoutManager = LinearLayoutManager(this, LinearLayoutManager.VERTICAL, false)
-        val postList = mutableListOf<Post>()
-        val postAdapter = FeedPostAdapter(postList)
+        postAdapter = FeedPostAdapter(postList)
         postRecycler.adapter = postAdapter
+        fetchPosts()
 
 
 
@@ -286,6 +285,56 @@ class MainActivity5 : AppCompatActivity() {
 
         Volley.newRequestQueue(this).add(request)
     }
+    fun fetchPosts() {
+        val url = "http://sociallyah.atwebpages.com/get_post.php"
+
+        val request = StringRequest(
+            Request.Method.GET, url,
+            { response ->
+                try {
+                    if (response.isEmpty()) {
+                        Toast.makeText(this, "No posts found", Toast.LENGTH_LONG).show()
+                        return@StringRequest
+                    }
+
+                    val jsonArray = JSONArray(response)
+                    postList.clear()
+
+                    if (jsonArray.length() > 0) {
+                        val obj = jsonArray.getJSONObject(0) // Only the most recent post
+                        val mediaBase64 = obj.getString("media")
+                        val mediaType = obj.getString("media_type")
+
+                        val post = Post(
+                            postId = obj.getString("post_id"),
+                            userId = obj.getString("user_id"),
+                            mediaBase64List = mutableListOf(mediaBase64),
+                            mediaTypeList = mutableListOf(mediaType),
+                            timestamp = obj.getLong("timestamp"),
+                            username = obj.optString("username", ""),
+                            caption = "", // Add captions if you store them
+                            userProfileBase64 = obj.optString("dp", ""),
+                            likes = mutableListOf()
+                        )
+
+                        postList.add(post)
+                    }
+
+                    postAdapter.notifyDataSetChanged()
+
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    Toast.makeText(this, "Failed to parse posts", Toast.LENGTH_LONG).show()
+                }
+            },
+            { error ->
+                Toast.makeText(this, "Fetch failed: ${error.message ?: "Unknown error"}", Toast.LENGTH_LONG).show()
+            }
+        )
+
+        Volley.newRequestQueue(this).add(request)
+    }
+
 
 
 

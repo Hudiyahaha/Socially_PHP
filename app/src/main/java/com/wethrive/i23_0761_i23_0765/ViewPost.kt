@@ -1,173 +1,164 @@
 package com.wethrive.i23_0761_i23_0765
 
 import android.graphics.BitmapFactory
+import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Base64
 import android.util.Log
+import android.view.View
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
+import android.widget.VideoView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.*
+import com.android.volley.Request
+import com.android.volley.toolbox.StringRequest
+import com.android.volley.toolbox.Volley
 import de.hdodenhof.circleimageview.CircleImageView
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.File
+import java.io.FileOutputStream
 
 class ViewPost : AppCompatActivity() {
 
     private lateinit var likeButton: ImageView
     private lateinit var likeCountText: TextView
-    private lateinit var postRef: DatabaseReference
-    private lateinit var currentUid: String
+    private lateinit var postId: String
+    private lateinit var uid: String
     private var isLiked = false
+    private val likes = mutableListOf<String>()
+
+    private lateinit var recyclerView: RecyclerView
+    private lateinit var commentInput: EditText
+    private lateinit var sendComment: ImageView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_view_post)
 
-
         likeButton = findViewById(R.id.likeButton)
         likeCountText = findViewById(R.id.likeCount)
-        val recyclerView = findViewById<RecyclerView>(R.id.postImagesRecycler)
-        recyclerView.layoutManager =
-            LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+        recyclerView = findViewById(R.id.postImagesRecycler)
+        recyclerView.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
 
-        val uid = intent.getStringExtra("uid")!!
-        val postId = intent.getStringExtra("postId")!!
-        currentUid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        commentInput = findViewById(R.id.commentInput)
+        sendComment = findViewById(R.id.sendComment)
 
-        postRef = FirebaseDatabase.getInstance()
-            .getReference("Posts").child(uid).child(postId)
+        postId = intent.getStringExtra("postId")!!
+        uid = intent.getStringExtra("uid")!!
 
-        // ---------- Load media ----------
-        val imagesRef = postRef.child("mediaBase64List")
-        val imageList = mutableListOf<String>()
-        val adapter = ImageAdapter(imageList)
-        recyclerView.adapter = adapter
+        fetchPostData()
+    }
 
-        imagesRef.addValueEventListener(object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                imageList.clear()
-                for (imgSnapshot in snapshot.children) {
-                    val base64 = imgSnapshot.getValue(String::class.java)
-                    if (base64 != null) imageList.add(base64)
-                }
-                adapter.notifyDataSetChanged()
-            }
+    private fun fetchPostData() {
+        val url = "http://sociallyah.atwebpages.com/get_post.php"
+        val queue = Volley.newRequestQueue(this)
 
-            override fun onCancelled(error: DatabaseError) {}
-        })
-      //Comments
-        val commentsRef = postRef.child("comments")
-        val commentsList = mutableListOf<Comment>()
-        val commentRecycler=findViewById<RecyclerView>(R.id.commentsRecycler)
-        val commentInput=findViewById<EditText>(R.id.commentInput)
-        val sendComment=findViewById<ImageView>(R.id.sendComment)
-        val commentsAdapter = CommentAdapter(commentsList)
-        commentRecycler.layoutManager= LinearLayoutManager(this)
-        commentRecycler.adapter=commentsAdapter
+        val request = object : StringRequest(
+            Request.Method.GET, url,
+            StringRequest@{ response ->
+                try {
+                    val jsonArray = JSONArray(response)
+                    var postObj: JSONObject? = null
 
-        commentsRef.addValueEventListener(object: ValueEventListener{
-            override fun onDataChange(snapshot: DataSnapshot) {
-               commentsList.clear()
-                for(commentSnap in snapshot.children){
-                    val comment=commentSnap.getValue(Comment::class.java)
-                    if(comment!=null) {
-                       commentsList.add(comment)
+                    // Find the specific post
+                    for (i in 0 until jsonArray.length()) {
+                        val obj = jsonArray.getJSONObject(i)
+                        if (obj.getString("post_id") == postId) {
+                            postObj = obj
+                            break
+                        }
                     }
-                    commentsAdapter.notifyDataSetChanged()
-                }
-            }
 
-            override fun onCancelled(error: DatabaseError) {
-                Log.e("ViewPost", "Failed to load comments: ${error.message}")
-            }
-        })
+                    if (postObj == null) {
+                        Toast.makeText(this, "Post not found", Toast.LENGTH_SHORT).show()
+                        finish()
+                        return@StringRequest
+                    }
 
-        sendComment.setOnClickListener {
-            val text=commentInput.text.toString()
-            if(text.isNotEmpty()) {
-                val user = FirebaseAuth.getInstance().currentUser
-                val currentUserId = user?.uid ?: return@setOnClickListener
-                val commentId = commentsRef.push().key ?: System.currentTimeMillis().toString()
-                val userRef2 =
-                    FirebaseDatabase.getInstance().getReference("Users").child(currentUserId)
-                userRef2.child("uname").get().addOnSuccessListener { unameSnap ->
-                    val uname = unameSnap.getValue(String::class.java) ?: "User"
-                    val comment = Comment(
-                        commentId = commentId,
-                        userId = currentUserId,
-                        username = uname,
-                        text = text,
-                        timestamp = System.currentTimeMillis()
-                    )
-                    commentsRef.child(commentId).setValue(comment)
-                    commentInput.text.clear()
+                    displayPost(postObj)
+
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    Toast.makeText(this, "Failed to parse post", Toast.LENGTH_SHORT).show()
                 }
+            },
+            { error ->
+                Toast.makeText(this, "Fetch failed: ${error.message ?: "Unknown error"}", Toast.LENGTH_LONG).show()
+            }
+        ) {}
+
+        queue.add(request)
+    }
+
+    private fun displayPost(postObj: JSONObject) {
+        val mediaBase64List = mutableListOf<String>()
+        val mediaTypeList = mutableListOf<String>()
+
+        try {
+            val mediaBase64 = postObj.getString("media") // Base64 string from server
+            val mediaType = postObj.getString("media_type")
+            mediaBase64List.add(mediaBase64)
+            mediaTypeList.add(mediaType)
+
+            recyclerView.adapter = PostMediaAdapter(mediaBase64List, mediaTypeList)
+
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Toast.makeText(this, "Error loading media", Toast.LENGTH_SHORT).show()
+        }
+
+        // Username & profile
+        val usernameText = findViewById<TextView>(R.id.username)
+        val profileImage = findViewById<CircleImageView>(R.id.profile)
+        usernameText.text = postObj.optString("username", "Unknown")
+        val dpBase64 = postObj.optString("dp", "")
+        if (dpBase64.isNotEmpty()) {
+            try {
+                val bytes = Base64.decode(dpBase64, Base64.DEFAULT)
+                val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                profileImage.setImageBitmap(bmp)
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
 
-        // ---------- Handle Like Button ----------
-        val likesRef = postRef.child("likes")
-        likesRef.addValueEventListener(object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                val likesList = snapshot.children.mapNotNull { it.getValue(String::class.java) }
-                val likeCount = likesList.size
-                likeCountText.text = "$likeCount likes"
-
-                isLiked = likesList.contains(currentUid)
-                likeButton.setImageResource(
-                    if (isLiked) R.drawable.heart_filled else R.drawable.like
-                )
-            }
-
-            override fun onCancelled(error: DatabaseError) {}
-        })
+        // Likes
+        likes.clear()
+        val likesStr = postObj.optString("likes", "")
+        if (likesStr.isNotEmpty()) likes.addAll(likesStr.split(","))
+        updateLikeUI()
 
         likeButton.setOnClickListener {
-            toggleLike()
+            // handle like API call if needed
         }
 
-        // ---------- Load profile ----------
-        val profile = findViewById<CircleImageView>(R.id.profile)
-        val usernameText = findViewById<TextView>(R.id.username)
+        // Comments (can use existing CommentAdapter)
+        val commentsRecycler = findViewById<RecyclerView>(R.id.commentsRecycler)
+        val commentsList = mutableListOf<Comment>()
+        val commentAdapter = CommentAdapter(commentsList)
+        commentsRecycler.layoutManager = LinearLayoutManager(this)
+        commentsRecycler.adapter = commentAdapter
 
-        val userRef = FirebaseDatabase.getInstance().getReference("Users").child(uid)
-        userRef.get().addOnSuccessListener { snapshot ->
-            val uname = snapshot.child("uname").getValue(String::class.java) ?: "Unknown"
-            usernameText.text = uname
-
-            val dpBase64 = snapshot.child("dp").getValue(String::class.java)
-            if (!dpBase64.isNullOrEmpty()) {
-                val bytes = Base64.decode(dpBase64, Base64.DEFAULT)
-                val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                profile.setImageBitmap(bitmap)
+        sendComment.setOnClickListener {
+            val text = commentInput.text.toString().trim()
+            if (text.isNotEmpty()) {
+                // postComment API logic if needed
+                commentInput.text.clear()
             }
         }
     }
 
-    private fun toggleLike() {
-        val likesRef = postRef.child("likes")
-
-        likesRef.runTransaction(object : Transaction.Handler {
-            override fun doTransaction(mutableData: MutableData): Transaction.Result {
-                val currentLikes = mutableData.children.mapNotNull { it.getValue(String::class.java) }.toMutableList()
-                if (currentLikes.contains(currentUid)) {
-                    currentLikes.remove(currentUid)
-                } else {
-                    currentLikes.add(currentUid)
-                }
-                mutableData.value = currentLikes
-                return Transaction.success(mutableData)
-            }
-
-            override fun onComplete(error: DatabaseError?, committed: Boolean, currentData: DataSnapshot?) {
-                if (error != null) {
-                    Toast.makeText(this@ViewPost, "Failed to like post: ${error.message}", Toast.LENGTH_SHORT).show()
-                }
-            }
-        })
+    private fun updateLikeUI() {
+        val likeCount = likes.size
+        likeCountText.text = "$likeCount likes"
+        isLiked = likes.contains(uid)
+        likeButton.setImageResource(if (isLiked) R.drawable.heart_filled else R.drawable.like)
     }
 }
