@@ -85,14 +85,18 @@ class friends : AppCompatActivity() {
         try {
             val jsonArray = JSONArray(response)
             allUsers.clear()
+
             for (i in 0 until jsonArray.length()) {
                 val obj = jsonArray.getJSONObject(i)
                 val username = obj.optString("username")
                 if (username.isNullOrBlank()) continue
+
                 if (!currentUsername.isNullOrBlank() && username == currentUsername) continue // skip self
+
+                val id=obj.optString("uid")
                 val dp = obj.optString("dp")
                 // We don't have email/bio from API; use defaults
-                val userData = UserData(id = username, uname = username, email = "", dp = dp, bio = "Socially App")
+                val userData = UserData(id = id, uname = username, email = "", dp = dp, bio = "Hey there! I am using Socially.")
                 allUsers.add(userData)
             }
             adapter.submitList(allUsers)

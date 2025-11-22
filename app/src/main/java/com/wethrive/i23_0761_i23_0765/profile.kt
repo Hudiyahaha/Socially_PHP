@@ -56,10 +56,7 @@ class profile : AppCompatActivity() {
         val followers= findViewById<TextView>(R.id.followers)
         val following= findViewById<TextView>(R.id.following)
 
-        val current= FirebaseAuth.getInstance().currentUser!!.uid
-        current.toString()
-
-        val databaseref= FirebaseDatabase.getInstance().getReference("Requests")
+        val current= getSharedPreferences("user_session", MODE_PRIVATE).getString("userId", "") ?: ""
 
         // Receive the targetId from the intent
         targetId = intent.getStringExtra("id")

@@ -62,7 +62,6 @@ class FriendsAdapter(
             holder.itemView.context.startActivity(i)
         }
 
-
         val userRef = FirebaseDatabase.getInstance().getReference("Users").child(user.id!!)
         userRef.child("status").addValueEventListener(object : ValueEventListener {
             override fun onDataChange(dataSnapshot: DataSnapshot) {
