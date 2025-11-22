@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.ContentValues
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
@@ -25,6 +26,7 @@ import com.android.volley.toolbox.StringRequest
 import com.android.volley.toolbox.Volley
 import de.hdodenhof.circleimageview.CircleImageView
 import org.json.JSONArray
+import java.io.ByteArrayOutputStream
 import java.io.IOException
 
 
@@ -95,39 +97,25 @@ class MainActivity5 : AppCompatActivity() {
         val addstory = findViewById<ImageView>(R.id.addStoryIcon)
         val profile = findViewById<CircleImageView>(R.id.profile)
         val storyRecyclerView = findViewById<RecyclerView>(R.id.storyRecyclerView)
-        val userId = getSharedPreferences("user_session", MODE_PRIVATE)
-            .getString("userId", "")
+        val prefs = getSharedPreferences("user_session", MODE_PRIVATE)
+        val userId = prefs.getString("userId", "") ?: ""
+        val savedDp = prefs.getString("dp", "")
 
-        if (!userId.isNullOrEmpty()) {
-            val request = object : StringRequest(Method.POST, "http://sociallyah.atwebpages.com/getdp.php",
-                { response ->
-                    Toast.makeText(this, "RAW: " + response, Toast.LENGTH_LONG).show()
-                    Log.e("DP_FETCH", "RAW RESPONSE: [$response]")
-
-
-                    if (response.isNotEmpty()) {
-                        val bytes = Base64.decode(response.trim(), Base64.DEFAULT)
-                        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                        profile.setImageBitmap(bitmap)
-                        profile_bottom.setImageBitmap(bitmap)
-                    }
-                },
-                { error ->
-                    runOnUiThread {
-                        Toast.makeText(this, "Error: ${error.message}", Toast.LENGTH_LONG).show()
-                    }
-                }
-            ) {
-                override fun getParams(): MutableMap<String, String> {
-                    return hashMapOf("userId" to userId)
-                }
+        if (!savedDp.isNullOrEmpty()) {
+            try {
+                val bytes = Base64.decode(savedDp, Base64.DEFAULT)
+                val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                profile.setImageBitmap(bitmap)
+                profile_bottom.setImageBitmap(bitmap)
+            } catch (e: IllegalArgumentException) {
+                // If decoding fails, fallback to default image
+                profile.setImageResource(R.drawable.me)
+                profile_bottom.setImageResource(R.drawable.me)
             }
-
-            Volley.newRequestQueue(this).add(request)
         } else {
-            Toast.makeText(this, "UserId is empty", Toast.LENGTH_LONG).show()
+            profile.setImageResource(R.drawable.me)
+            profile_bottom.setImageResource(R.drawable.me)
         }
-
 
 
         val storyList = mutableListOf<Story>()
@@ -206,10 +194,24 @@ class MainActivity5 : AppCompatActivity() {
     }
 
     fun uploadStory(uri: Uri, type: String) {
-        val bytes = contentResolver.openInputStream(uri)?.readBytes()
-        val base64 = Base64.encodeToString(bytes, Base64.DEFAULT)
 
+        val input = contentResolver.openInputStream(uri)
+        if (input == null) {
+            Toast.makeText(this, "Failed to read file", Toast.LENGTH_SHORT).show()
+            return
+        }
 
+        val bitmap = BitmapFactory.decodeStream(input)
+
+        // Resize and compress the image
+        val resized = Bitmap.createScaledBitmap(bitmap, 720, 720, true)
+
+        val stream = ByteArrayOutputStream()
+        resized.compress(Bitmap.CompressFormat.JPEG, 70, stream)
+        val bytes = stream.toByteArray()
+
+        // Convert to Base64 without wrapping (important)
+        val base64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
 
         val request = object : StringRequest(
             Method.POST,
@@ -218,7 +220,10 @@ class MainActivity5 : AppCompatActivity() {
                 Log.d("UPLOAD", response)
                 Toast.makeText(this, "Story uploaded", Toast.LENGTH_SHORT).show()
             },
-            { error -> Log.d("UPLOAD_ERROR", error.toString()) }
+            { error ->
+                Log.e("UPLOAD_ERROR", error.toString())
+                Toast.makeText(this, "Upload failed", Toast.LENGTH_SHORT).show()
+            }
         ) {
             override fun getParams(): MutableMap<String, String> {
                 val prefs = getSharedPreferences("user_session", MODE_PRIVATE)
