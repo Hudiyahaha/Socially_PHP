@@ -186,13 +186,12 @@ class MainActivity5 : AppCompatActivity() {
             }
         }
 
-        // In-app notifications for follow requests (Android 13+ permission safe)
+        // In-app notifications using PHP/MySQL (messages, follow requests, screenshots)
         NotificationHelper.ensureChannel(this)
         NotificationHelper.maybeRequestPostNotifications(this)
-        NotificationHelper.startFollowRequestListener(this)
-        // Messaging is now PHP-based; disable Firebase DB listeners to avoid crashes
-        // NotificationHelper.startMessageListeners(this)
-        // NotificationHelper.startScreenshotListeners(this)
+        if (userId.isNotBlank()) {
+            NotificationHelper.startNotificationPolling(this, userId)
+        }
     }
 
     fun uploadStory(uri: Uri, type: String) {
