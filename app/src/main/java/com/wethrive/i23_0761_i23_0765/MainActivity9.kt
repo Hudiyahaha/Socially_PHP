@@ -192,11 +192,30 @@ class MainActivity9 : AppCompatActivity() {
                     // build server message object (serverMsgJson may be null)
                     val serverMsg = serverMsgJson?.let { parseServerMessage(it) } ?: m.copy(isPending = false, deliveryState = 1)
 
-                    // update local database
-                    messagesDbHelper.insertOrUpdateMessage(serverMsg)
+                    // CRITICAL FIX: If server returned a different message ID, we need to:
+                    // 1. Delete the old local message from database
+                    // 2. Replace it in the UI with the server message
+                    if (serverMsg.messageId != m.messageId) {
+                        Log.d("MessagingActivity", "Replacing local ID ${m.messageId} with server ID ${serverMsg.messageId}")
+                        
+                        // Delete old local message from database
+                        messagesDbHelper.deleteMessage(m.messageId)
+                        
+                        // Remove old message from UI and add new one
+                        val idx = messages.indexOfFirst { it.messageId == m.messageId }
+                        if (idx >= 0) {
+                            messages[idx] = serverMsg
+                            adapter.notifyItemChanged(idx)
+                        } else {
+                            adapter.addOrUpdateMessage(serverMsg)
+                        }
+                    } else {
+                        adapter.addOrUpdateMessage(serverMsg)
+                        adapter.updateDeliveryState(m.messageId, 1)
+                    }
 
-                    adapter.addOrUpdateMessage(serverMsg)
-                    adapter.updateDeliveryState(m.messageId, 1)
+                    // Save server message to local database
+                    messagesDbHelper.insertOrUpdateMessage(serverMsg)
                 } else {
                     adapter.updateDeliveryState(m.messageId, 2)
                 }
@@ -210,14 +229,19 @@ class MainActivity9 : AppCompatActivity() {
             Method.POST, url,
             { resp ->
                 try {
+                    Log.d("MessagingActivity", "Send response: $resp")
                     val j = JSONObject(resp)
                     val ok = j.optInt("status", 0) == 1
                     cb(ok, if (ok) j.optJSONObject("message") else null)
-                } catch (_: Exception) {
+                } catch (e: Exception) {
+                    Log.e("MessagingActivity", "Parse error: ${e.message}")
                     cb(false, null)
                 }
             },
-            { _ -> cb(false, null) }
+            { err -> 
+                Log.e("MessagingActivity", "Send error: ${err.message}")
+                cb(false, null) 
+            }
         ) {
             override fun getParams(): MutableMap<String, String> {
                 val map = HashMap<String, String>()
@@ -231,7 +255,16 @@ class MainActivity9 : AppCompatActivity() {
                 map["vanish_mode"] = if (msg.vanishMode) "1" else "0"
                 return map
             }
+            
+            // Disable Volley caching for real-time sync
+            override fun getHeaders(): MutableMap<String, String> {
+                val headers = HashMap<String, String>()
+                headers["Cache-Control"] = "no-cache, no-store"
+                headers["Pragma"] = "no-cache"
+                return headers
+            }
         }
+        req.setShouldCache(false)
         Volley.newRequestQueue(this).add(req)
     }
 
@@ -245,20 +278,23 @@ class MainActivity9 : AppCompatActivity() {
             Method.POST, url,
             { resp ->
                 try {
-                    Log.d("MessagingActivity", ">>> Server response received: ${resp.take(200)}")
+                    Log.d("MessagingActivity", ">>> Server response received: ${resp.take(500)}")
                     val j = JSONObject(resp)
                     if (j.optInt("status", 0) == 1) {
                         val arr = j.optJSONArray("messages") ?: JSONArray()
-                        Log.d("MessagingActivity", ">>> Server returned ${arr.length()} total messages")
+                        val serverCount = j.optInt("count", 0)
+                        Log.d("MessagingActivity", ">>> Server returned $serverCount messages (array length: ${arr.length()})")
 
                         // Get all server message IDs
                         val serverMessageIds = mutableSetOf<String>()
 
                         val incoming = mutableListOf<Message>()
                         val existingIds = messages.mapNotNull { it.messageId }.toHashSet()
-                        val existingContentKeys = messages.map { buildContentKey(it.senderId, it.text, it.timestamp) }.toHashSet()
+                        
+                        // Also track local_ IDs that might be pending
+                        val pendingLocalIds = messages.filter { it.messageId.startsWith("local_") }.map { it.messageId }.toSet()
 
-                        Log.d("MessagingActivity", ">>> Currently have ${existingIds.size} messages in UI")
+                        Log.d("MessagingActivity", ">>> Currently have ${existingIds.size} messages in UI, ${pendingLocalIds.size} pending")
 
                         for (i in 0 until arr.length()) {
                             val o = arr.getJSONObject(i)
@@ -279,11 +315,19 @@ class MainActivity9 : AppCompatActivity() {
                                 continue
                             }
 
-                            // skip duplicates by content (fallback for messages without IDs)
-                            val key = buildContentKey(sender, text, ts)
-                            if (existingContentKeys.contains(key)) {
-                                Log.d("MessagingActivity", ">>> SKIPPED: Already have this message by content key")
-                                continue
+                            // Skip if this is our own message that's still pending (has local_ ID)
+                            // We check by matching sender + text + approximate timestamp
+                            if (sender == currentUserId && pendingLocalIds.isNotEmpty()) {
+                                val matchingPending = messages.find { 
+                                    it.messageId.startsWith("local_") && 
+                                    it.senderId == sender && 
+                                    it.text == text &&
+                                    kotlin.math.abs(it.timestamp - ts) < 60000 // within 1 minute
+                                }
+                                if (matchingPending != null) {
+                                    Log.d("MessagingActivity", ">>> SKIPPED: This is our pending message (local: ${matchingPending.messageId})")
+                                    continue
+                                }
                             }
 
                             val m = Message(
@@ -298,24 +342,25 @@ class MainActivity9 : AppCompatActivity() {
                                 edited = o.optInt("edited",0)==1,
                                 deleted = o.optInt("deleted",0)==1,
                                 vanishMode = o.optInt("vanish_mode",0)==1,
+                                seen = o.optInt("seen",0)==1,
                                 deliveryState = 1,
                                 isPending = false
                             )
                             incoming.add(m)
-                            Log.d("MessagingActivity", ">>> ADDED to incoming list")
+                            Log.d("MessagingActivity", ">>> ADDED to incoming list: ${m.messageId}")
                         }
 
                         Log.d("MessagingActivity", ">>> ${incoming.size} NEW messages to display")
 
                         if (incoming.isNotEmpty()) {
                             for (m in incoming) {
-                                // Mark message as seen since user is viewing the chat
-                                val seenMessage = m.copy(seen = true)
+                                // Mark message as seen if current user is receiver
+                                val seenMessage = if (m.receiverId == currentUserId) m.copy(seen = true) else m
                                 // Save to local database
                                 messagesDbHelper.insertOrUpdateMessage(seenMessage)
                                 // Add to UI
                                 adapter.addOrUpdateMessage(seenMessage)
-                                Log.d("MessagingActivity", ">>> Added message to UI: ${m.text?.take(20)}")
+                                Log.d("MessagingActivity", ">>> Added message to UI: ${m.messageId} - ${m.text?.take(20)}")
                             }
 
                             // Auto-scroll to show new messages
@@ -323,8 +368,11 @@ class MainActivity9 : AppCompatActivity() {
                                 recycler.smoothScrollToPosition(messages.lastIndex)
                             }
 
-                            // mark seen on server too
-                            markMessagesSeenOnServer()
+                            // mark seen on server too (only if we received new messages for us)
+                            val receivedForMe = incoming.any { it.receiverId == currentUserId }
+                            if (receivedForMe) {
+                                markMessagesSeenOnServer()
+                            }
                         } else {
                             Log.d("MessagingActivity", ">>> No new messages to display")
                         }
@@ -332,7 +380,7 @@ class MainActivity9 : AppCompatActivity() {
                         // Sync: Remove messages from local DB that don't exist on server
                         syncLocalDbWithServer(serverMessageIds)
                     } else {
-                        Log.w("MessagingActivity", ">>> Server returned status != 1")
+                        Log.w("MessagingActivity", ">>> Server returned status != 1: $resp")
                     }
                 } catch (e: Exception) {
                     Log.e("MessagingActivity", ">>> FETCH ERROR: ${e.message}", e)
@@ -341,18 +389,35 @@ class MainActivity9 : AppCompatActivity() {
             { err -> Log.e("MessagingActivity", ">>> NETWORK ERROR: ${err.message}", err) }
         ) {
             override fun getParams(): MutableMap<String, String> =
-                hashMapOf("chat_id" to chatId, "since" to (0).toString())
+                hashMapOf("chat_id" to chatId, "user_id" to currentUserId)
+            
+            // Disable Volley caching for real-time sync
+            override fun getHeaders(): MutableMap<String, String> {
+                val headers = HashMap<String, String>()
+                headers["Cache-Control"] = "no-cache, no-store"
+                headers["Pragma"] = "no-cache"
+                return headers
+            }
         }
+        req.setShouldCache(false)
         Volley.newRequestQueue(this).add(req)
     }
 
     private fun markMessagesSeenOnServer() {
         val url = BASE_URL + "messages_seen.php"
         val req = object : StringRequest(Method.POST, url,
-            { /* ignore response */ }, { /* ignore error */ }) {
+            { resp -> Log.d("MessagingActivity", "Mark seen response: $resp") }, 
+            { err -> Log.w("MessagingActivity", "Mark seen error: ${err.message}") }) {
             override fun getParams(): MutableMap<String, String> =
-                hashMapOf("chat_id" to chatId, "user_id" to receiverId)
+                hashMapOf("chat_id" to chatId, "user_id" to currentUserId)  // FIX: Use currentUserId, not receiverId
+            
+            override fun getHeaders(): MutableMap<String, String> {
+                val headers = HashMap<String, String>()
+                headers["Cache-Control"] = "no-cache, no-store"
+                return headers
+            }
         }
+        req.setShouldCache(false)
         Volley.newRequestQueue(this).add(req)
     }
 
@@ -650,7 +715,7 @@ class MainActivity9 : AppCompatActivity() {
                 try {
                     val j = JSONObject(resp)
                     if (j.optInt("status", 0) == 1) {
-                        Log.d("MessagingActivity", "Vanish mode messages deleted on server")
+                        Log.d("MessagingActivity", "Vanish mode messages deleted on server: ${j.optInt("deleted_count", 0)}")
                     }
                 } catch (e: Exception) {
                     Log.w("MessagingActivity", "vanish delete error: ${e.localizedMessage}")
@@ -660,7 +725,14 @@ class MainActivity9 : AppCompatActivity() {
         ) {
             override fun getParams(): MutableMap<String, String> =
                 hashMapOf("chat_id" to chatId, "user_id" to currentUserId)
+            
+            override fun getHeaders(): MutableMap<String, String> {
+                val headers = HashMap<String, String>()
+                headers["Cache-Control"] = "no-cache, no-store"
+                return headers
+            }
         }
+        req.setShouldCache(false)
         Volley.newRequestQueue(this).add(req)
     }
 
