@@ -83,6 +83,7 @@ class MainActivity9 : AppCompatActivity() {
     private var screenshotObserver: ContentObserver? = null
     private var lastScreenshotKey: String? = null
     private var lastScreenshotSentAt: Long = 0L
+    private var isSendingScreenshot: Boolean = false
 
     // ----------------- Agora Call Variables -----------------
     private lateinit var audio: ImageView
@@ -408,11 +409,12 @@ class MainActivity9 : AppCompatActivity() {
                             adapter.addOrUpdateMessage(serverMsg)
                         }
                     } else {
+                        // Update existing message with server data
                         adapter.addOrUpdateMessage(serverMsg)
                         adapter.updateDeliveryState(m.messageId, 1)
                     }
 
-                    // Save server message to local database
+                    // Save server message to local database (this will update if exists)
                     messagesDbHelper.insertOrUpdateMessage(serverMsg)
                 } else {
                     adapter.updateDeliveryState(m.messageId, 2)
@@ -487,12 +489,15 @@ class MainActivity9 : AppCompatActivity() {
                         val serverMessageIds = mutableSetOf<String>()
 
                         val incoming = mutableListOf<Message>()
+                        // Get existing message IDs from both UI and local DB to prevent duplicates
                         val existingIds = messages.mapNotNull { it.messageId }.toHashSet()
+                        val localDbMessages = messagesDbHelper.getMessagesForChat(chatId)
+                        localDbMessages.forEach { existingIds.add(it.messageId) }
                         
                         // Also track local_ IDs that might be pending
                         val pendingLocalIds = messages.filter { it.messageId.startsWith("local_") }.map { it.messageId }.toSet()
 
-                        Log.d("MessagingActivity", ">>> Currently have ${existingIds.size} messages in UI, ${pendingLocalIds.size} pending")
+                        Log.d("MessagingActivity", ">>> Currently have ${existingIds.size} messages in UI+DB, ${pendingLocalIds.size} pending")
 
                         for (i in 0 until arr.length()) {
                             val o = arr.getJSONObject(i)
@@ -515,15 +520,41 @@ class MainActivity9 : AppCompatActivity() {
 
                             // Skip if this is our own message that's still pending (has local_ ID)
                             // We check by matching sender + text + approximate timestamp
-                            if (sender == currentUserId && pendingLocalIds.isNotEmpty()) {
+                            if (sender == currentUserId) {
                                 val matchingPending = messages.find { 
-                                    it.messageId.startsWith("local_") && 
+                                    (it.messageId.startsWith("local_") || pendingLocalIds.contains(it.messageId)) && 
                                     it.senderId == sender && 
                                     it.text == text &&
                                     kotlin.math.abs(it.timestamp - ts) < 60000 // within 1 minute
                                 }
                                 if (matchingPending != null) {
-                                    Log.d("MessagingActivity", ">>> SKIPPED: This is our pending message (local: ${matchingPending.messageId})")
+                                    Log.d("MessagingActivity", ">>> SKIPPED: This is our pending message (local: ${matchingPending.messageId}, server: $msgId)")
+                                    // If we have a local version, update it with server ID instead of adding duplicate
+                                    if (matchingPending.messageId.startsWith("local_") && msgId.isNotBlank()) {
+                                        val serverMsg = Message(
+                                            messageId = msgId,
+                                            chatId = chatId,
+                                            senderId = sender,
+                                            receiverId = receiver,
+                                            text = text,
+                                            imageUrl = o.optString("image"),
+                                            postId = o.optString("post_id"),
+                                            timestamp = ts,
+                                            edited = o.optInt("edited",0)==1,
+                                            deleted = o.optInt("deleted",0)==1,
+                                            vanishMode = o.optInt("vanish_mode",0)==1,
+                                            seen = o.optInt("seen",0)==1,
+                                            deliveryState = 1,
+                                            isPending = false
+                                        )
+                                        val idx = messages.indexOfFirst { it.messageId == matchingPending.messageId }
+                                        if (idx >= 0) {
+                                            messages[idx] = serverMsg
+                                            adapter.notifyItemChanged(idx)
+                                            messagesDbHelper.insertOrUpdateMessage(serverMsg)
+                                            messagesDbHelper.deleteMessage(matchingPending.messageId)
+                                        }
+                                    }
                                     continue
                                 }
                             }
@@ -1739,11 +1770,19 @@ class MainActivity9 : AppCompatActivity() {
     }
 
     private fun sendScreenshotEvent() {
+        // Prevent duplicate sends
+        if (isSendingScreenshot) {
+            Log.d("MainActivity9", "Screenshot send already in progress, skipping")
+            return
+        }
+        
         try {
+            isSendingScreenshot = true
             val url = BASE_URL + "screenshot_create.php"
             val req = object : StringRequest(
                 Method.POST, url,
                 { resp ->
+                    isSendingScreenshot = false
                     try {
                         val j = JSONObject(resp)
                         if (j.optInt("status", 0) == 1) {
@@ -1756,6 +1795,7 @@ class MainActivity9 : AppCompatActivity() {
                     }
                 },
                 { err ->
+                    isSendingScreenshot = false
                     Log.w("MainActivity9", "Network error sending screenshot: ${err.message}")
                 }
             ) {
@@ -1777,6 +1817,7 @@ class MainActivity9 : AppCompatActivity() {
             req.setShouldCache(false)
             Volley.newRequestQueue(this).add(req)
         } catch (e: Exception) {
+            isSendingScreenshot = false
             Log.w("MainActivity9", "Error sending screenshot event: ${e.localizedMessage}")
         }
     }
