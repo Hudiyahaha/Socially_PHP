@@ -54,7 +54,7 @@ class MainActivity9 : AppCompatActivity() {
     private val messagesDbHelper: MessagesDbHelper by lazy { MessagesDbHelper.getInstance(this) }
 
     private val handler = Handler(Looper.getMainLooper())
-    private val retryIntervalMs = 10_000L
+    private val retryIntervalMs = 3_000L  // Poll every 3 seconds
 
     // base url - change to your server
     private val BASE_URL = "http://sociallyah.atwebpages.com/"
@@ -63,7 +63,6 @@ class MainActivity9 : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // requires layout activity_messaging.xml with correct ids
         setContentView(R.layout.activity_main9)
 
         receiverId = intent.getStringExtra("receiverId") ?: "user_b"
@@ -106,11 +105,25 @@ class MainActivity9 : AppCompatActivity() {
         // initial fetch
         fetchMessages(initial = true)
 
-        // schedule periodic fetch + retry queue
-        handler.post(fetchAndRetryRunnable)
-
         // listen to network up events
         registerReceiver(netReceiver, IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION))
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Fetch messages immediately when chat becomes visible
+        Log.d("MessagingActivity", "=== CHAT RESUMED - Fetching messages ===")
+        fetchMessages(initial = false)
+        // Start polling
+        handler.removeCallbacksAndMessages(null)
+        handler.postDelayed(fetchAndRetryRunnable, retryIntervalMs)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        // Stop polling when chat is not visible
+        Log.d("MessagingActivity", "=== CHAT PAUSED - Stopping polling ===")
+        handler.removeCallbacksAndMessages(null)
     }
 
     override fun onDestroy() {
@@ -226,16 +239,17 @@ class MainActivity9 : AppCompatActivity() {
 
     private fun fetchMessages(initial: Boolean = false) {
         val url = BASE_URL + "messages_fetch.php"
-        Log.d("MessagingActivity", "Fetching messages for chat: $chatId")
+        Log.d("MessagingActivity", ">>> Fetching messages for chat: $chatId (currentUserId: $currentUserId, receiverId: $receiverId)")
 
         val req = object : StringRequest(
             Method.POST, url,
             { resp ->
                 try {
+                    Log.d("MessagingActivity", ">>> Server response received: ${resp.take(200)}")
                     val j = JSONObject(resp)
                     if (j.optInt("status", 0) == 1) {
                         val arr = j.optJSONArray("messages") ?: JSONArray()
-                        Log.d("MessagingActivity", "Server returned ${arr.length()} messages")
+                        Log.d("MessagingActivity", ">>> Server returned ${arr.length()} total messages")
 
                         // Get all server message IDs
                         val serverMessageIds = mutableSetOf<String>()
@@ -244,28 +258,39 @@ class MainActivity9 : AppCompatActivity() {
                         val existingIds = messages.mapNotNull { it.messageId }.toHashSet()
                         val existingContentKeys = messages.map { buildContentKey(it.senderId, it.text, it.timestamp) }.toHashSet()
 
+                        Log.d("MessagingActivity", ">>> Currently have ${existingIds.size} messages in UI")
+
                         for (i in 0 until arr.length()) {
                             val o = arr.getJSONObject(i)
                             val msgId = o.optString("message_id")
                             val sender = o.optString("sender_id")
+                            val receiver = o.optString("receiver_id")
                             val text = o.optString("text")
                             val ts = o.optLong("timestamp", System.currentTimeMillis())
+
+                            Log.d("MessagingActivity", ">>> Processing msg[$i]: id=$msgId, from=$sender, to=$receiver, text=${text.take(20)}")
 
                             // Track server message IDs
                             if (msgId.isNotBlank()) serverMessageIds.add(msgId)
 
                             // skip duplicates by message ID
-                            if (msgId.isNotBlank() && existingIds.contains(msgId)) continue
+                            if (msgId.isNotBlank() && existingIds.contains(msgId)) {
+                                Log.d("MessagingActivity", ">>> SKIPPED: Already have this message ID")
+                                continue
+                            }
 
                             // skip duplicates by content (fallback for messages without IDs)
                             val key = buildContentKey(sender, text, ts)
-                            if (existingContentKeys.contains(key)) continue
+                            if (existingContentKeys.contains(key)) {
+                                Log.d("MessagingActivity", ">>> SKIPPED: Already have this message by content key")
+                                continue
+                            }
 
                             val m = Message(
                                 messageId = msgId,
                                 chatId = chatId,
                                 senderId = sender,
-                                receiverId = o.optString("receiver_id"),
+                                receiverId = receiver,
                                 text = text,
                                 imageUrl = o.optString("image"),
                                 postId = o.optString("post_id"),
@@ -277,11 +302,12 @@ class MainActivity9 : AppCompatActivity() {
                                 isPending = false
                             )
                             incoming.add(m)
+                            Log.d("MessagingActivity", ">>> ADDED to incoming list")
                         }
 
-                        if (incoming.isNotEmpty()) {
-                            Log.d("MessagingActivity", "📨 Received ${incoming.size} new messages from server")
+                        Log.d("MessagingActivity", ">>> ${incoming.size} NEW messages to display")
 
+                        if (incoming.isNotEmpty()) {
                             for (m in incoming) {
                                 // Mark message as seen since user is viewing the chat
                                 val seenMessage = m.copy(seen = true)
@@ -289,6 +315,7 @@ class MainActivity9 : AppCompatActivity() {
                                 messagesDbHelper.insertOrUpdateMessage(seenMessage)
                                 // Add to UI
                                 adapter.addOrUpdateMessage(seenMessage)
+                                Log.d("MessagingActivity", ">>> Added message to UI: ${m.text?.take(20)}")
                             }
 
                             // Auto-scroll to show new messages
@@ -298,16 +325,20 @@ class MainActivity9 : AppCompatActivity() {
 
                             // mark seen on server too
                             markMessagesSeenOnServer()
+                        } else {
+                            Log.d("MessagingActivity", ">>> No new messages to display")
                         }
 
                         // Sync: Remove messages from local DB that don't exist on server
                         syncLocalDbWithServer(serverMessageIds)
+                    } else {
+                        Log.w("MessagingActivity", ">>> Server returned status != 1")
                     }
                 } catch (e: Exception) {
-                    Log.w("MessagingActivity", "fetch parse: ${e.localizedMessage}")
+                    Log.e("MessagingActivity", ">>> FETCH ERROR: ${e.message}", e)
                 }
             },
-            { err -> Log.w("MessagingActivity", "fetch error ${err.localizedMessage}") }
+            { err -> Log.e("MessagingActivity", ">>> NETWORK ERROR: ${err.message}", err) }
         ) {
             override fun getParams(): MutableMap<String, String> =
                 hashMapOf("chat_id" to chatId, "since" to (0).toString())
