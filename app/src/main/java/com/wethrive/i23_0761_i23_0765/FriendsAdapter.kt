@@ -57,11 +57,11 @@ class FriendsAdapter(
         }
 
         // 🔥 ONLINE/OFFLINE VIA MYSQL
-//        if (user.online == 1) {
-//            holder.onlineDot.setBackgroundResource(R.drawable.green_dot)
-//        } else {
-//            holder.onlineDot.setBackgroundResource(R.drawable.red_dot)
-//        }
+        if (user.online == 1) {
+            holder.onlineDot.setBackgroundResource(R.drawable.green_dot)
+        } else {
+            holder.onlineDot.setBackgroundResource(R.drawable.red_dot)
+        }
 
         holder.itemView.setOnClickListener {
             val i = Intent(holder.itemView.context, profile::class.java)
