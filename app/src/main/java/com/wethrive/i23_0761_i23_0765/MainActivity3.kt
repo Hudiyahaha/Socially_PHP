@@ -26,35 +26,13 @@ class MainActivity3 : AppCompatActivity() {
 
         val prefs = getSharedPreferences("user_session", MODE_PRIVATE)
         val userId = prefs.getString("userId", "") ?: ""
-
-        if (!userId.isNullOrEmpty()) {
-            val request = object : StringRequest(Method.POST, "http://sociallyah.atwebpages.com/getdp.php",
-                { response ->
-                    Toast.makeText(this, "RAW: " + response, Toast.LENGTH_LONG).show()
-                    Log.e("DP_FETCH", "RAW RESPONSE: [$response]")
-
-
-                    if (response.isNotEmpty()) {
-                        val bytes = Base64.decode(response.trim(), Base64.DEFAULT)
-                        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                        profile.setImageBitmap(bitmap)
-
-                    }
-                },
-                { error ->
-                    runOnUiThread {
-                        Toast.makeText(this, "Error: ${error.message}", Toast.LENGTH_LONG).show()
-                    }
-                }
-            ) {
-                override fun getParams(): MutableMap<String, String> {
-                    return hashMapOf("userId" to userId)
-                }
-            }
-
-            Volley.newRequestQueue(this).add(request)
+        val savedDp = prefs.getString("dp", "")
+        if (!savedDp.isNullOrEmpty()) {
+            val bytes = Base64.decode(savedDp, Base64.DEFAULT)
+            val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+            profile.setImageBitmap(bitmap)
         } else {
-            Toast.makeText(this, "UserId is empty", Toast.LENGTH_LONG).show()
+            profile.setImageResource(R.drawable.me)
         }
         btn?.setOnClickListener {
             startActivity(Intent(this, MainActivity5::class.java))
@@ -62,6 +40,8 @@ class MainActivity3 : AppCompatActivity() {
         }
 
         switchAccount?.setOnClickListener {
+            val prefs = getSharedPreferences("user_session", MODE_PRIVATE)
+            prefs.edit().clear().apply()   // <—— CRITICAL FIX
             startActivity(Intent(this, MainActivity4::class.java))
             finish()
         }

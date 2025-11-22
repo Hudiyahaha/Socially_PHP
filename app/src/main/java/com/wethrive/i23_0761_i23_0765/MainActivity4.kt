@@ -55,6 +55,7 @@ class MainActivity4 : AppCompatActivity() {
                     if (json.getInt("status") == 1) {
 
                         val prefs = getSharedPreferences("user_session", MODE_PRIVATE)
+                        prefs.edit().clear().apply()
                         prefs.edit().apply {
                             putBoolean("isLoggedIn", true)
                             putBoolean("isFirstTime", false)
@@ -70,7 +71,9 @@ class MainActivity4 : AppCompatActivity() {
                             apply()
                         }
 
-                        startActivity(Intent(this, MainActivity3::class.java))
+                        val intent = Intent(this, MainActivity3::class.java)
+                        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK or Intent.FLAG_ACTIVITY_NEW_TASK)
+                        startActivity(intent)
                         finish()
 
                     } else {

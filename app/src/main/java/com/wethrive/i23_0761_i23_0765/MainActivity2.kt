@@ -36,6 +36,8 @@ class MainActivity2 : AppCompatActivity() {
         val login=findViewById<TextView>(R.id.login)
         val profile=findViewById<CircleImageView>(R.id.profile_image)
         var img=""
+        val prefs = getSharedPreferences("user_session", MODE_PRIVATE)
+        prefs.edit().clear().apply()
 
         // Launcher to pick an image from gallery
         val pickImageLauncher = registerForActivityResult(
@@ -84,11 +86,16 @@ class MainActivity2 : AppCompatActivity() {
                         val json = JSONObject(response)
 
                         if (json.getInt("status") == 1) {
+                            val newUserId = json.getString("uid")
+
+                            // SAVE SESSION
+                            val editor = prefs.edit()
+                            editor.putString("userId", newUserId)
+                            editor.putBoolean("isLoggedIn", true)
+                            editor.apply()
 
                             // Signup successful → move to MainActivity3
                             val intent = Intent(this, MainActivity3::class.java)
-                            intent.putExtra("uid", json.getString("uid"))
-                            intent.putExtra("id", json.getString("id"))
                             startActivity(intent)
                             finish()
 
