@@ -226,6 +226,8 @@ class MainActivity9 : AppCompatActivity() {
 
     private fun fetchMessages(initial: Boolean = false) {
         val url = BASE_URL + "messages_fetch.php"
+        Log.d("MessagingActivity", "Fetching messages for chat: $chatId")
+
         val req = object : StringRequest(
             Method.POST, url,
             { resp ->
@@ -233,6 +235,7 @@ class MainActivity9 : AppCompatActivity() {
                     val j = JSONObject(resp)
                     if (j.optInt("status", 0) == 1) {
                         val arr = j.optJSONArray("messages") ?: JSONArray()
+                        Log.d("MessagingActivity", "Server returned ${arr.length()} messages")
 
                         // Get all server message IDs
                         val serverMessageIds = mutableSetOf<String>()
