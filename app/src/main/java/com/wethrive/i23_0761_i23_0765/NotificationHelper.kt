@@ -60,18 +60,18 @@ object NotificationHelper {
     // Start polling for all notifications (messages, follow requests, screenshots)
     fun startNotificationPolling(context: Context, userId: String) {
         if (isPolling && currentUserId == userId) return
-        
+
         currentUserId = userId
         isPolling = true
         ensureChannel(context)
-        
+
         if (notificationHandler == null) {
             notificationHandler = Handler(Looper.getMainLooper())
         }
-        
+
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         lastNotificationCheck = prefs.getLong("last_notification_check", System.currentTimeMillis())
-        
+
         notificationRunnable = object : Runnable {
             override fun run() {
                 if (!isPolling) return
@@ -143,9 +143,9 @@ object NotificationHelper {
     private fun processNotification(context: Context, notif: JSONObject, prefs: SharedPreferences) {
         val type = notif.optString("type")
         val notifId = notif.optString("notification_id")
-        
+
         Log.d("NotificationHelper", "Processing notification: type=$type, id=$notifId")
-        
+
         // Skip if already notified
         if (wasNotified(prefs, notifId)) {
             Log.d("NotificationHelper", "Skipping already notified: $notifId")
@@ -157,20 +157,20 @@ object NotificationHelper {
                 val chatId = notif.optString("chat_id")
                 // Don't notify if user is currently viewing this chat
                 if (activeChatId == chatId) return
-                
+
                 val senderId = notif.optString("sender_id")
                 val senderName = notif.optString("sender_name", "Someone")
                 val hasImage = notif.optInt("has_image", 0) == 1
                 val hasPost = notif.optInt("has_post", 0) == 1
                 val text = notif.optString("text", "")
-                
+
                 val summary = when {
                     hasImage -> "sent you a photo"
                     hasPost -> "shared a post"
                     text.isNotBlank() -> text.take(50)
                     else -> "sent you a message"
                 }
-                
+
                 showMessageNotification(context, chatId, senderId, senderName, summary)
                 markNotified(prefs, notifId)
             }
@@ -184,7 +184,7 @@ object NotificationHelper {
                 val chatId = notif.optString("chat_id")
                 // Don't notify if user is currently viewing this chat
                 if (activeChatId == chatId) return
-                
+
                 val senderId = notif.optString("sender_id")
                 val senderName = notif.optString("sender_name", "Someone")
                 showScreenshotNotification(context, chatId, senderId, senderName)

@@ -248,41 +248,47 @@ class MainActivity5 : AppCompatActivity() {
             Method.POST,
             "http://sociallyah.atwebpages.com/get_story.php",
             { response ->
-                try {
-                    Log.e("FETCH_STORIES_RAW", "RAW RESPONSE: [$response]")
+                val trimmed = response.trim()
+                // Check if response is valid JSON (should start with [)
+                if (trimmed.startsWith("[")) {
+                    try {
+                        Log.e("FETCH_STORIES_RAW", "RAW RESPONSE: [$trimmed]")
 
-                    val jsonArray = JSONArray(response)
-                    val storyList = mutableListOf<Story>()
+                        val jsonArray = JSONArray(trimmed)
+                        val storyList = mutableListOf<Story>()
 
-                    for (i in 0 until jsonArray.length()) {
-                        val obj = jsonArray.getJSONObject(i)
-                        val storyUserId = obj.getString("userId")
+                        for (i in 0 until jsonArray.length()) {
+                            val obj = jsonArray.getJSONObject(i)
+                            val storyUserId = obj.getString("userId")
 
-                        // Skip your own story
-                        if (storyUserId == currentUserId) continue
+                            // Skip your own story
+                            if (storyUserId == currentUserId) continue
 
-                        storyList.add(
-                            Story(
-                                id = obj.getString("id"),
-                                userId = storyUserId,
-                                mediaUrl = "http://sociallyah.atwebpages.com/i.php?p=${obj.getString("media")}",   // URL from PHP
-                                mediaType = obj.getString("type"),
-                                timestamp = obj.getLong("timestamp"),
-                                username = obj.getString("username"),
-                                dpUrl = obj.optString("dp")
-                                // profile picture URL
+                            storyList.add(
+                                Story(
+                                    id = obj.getString("id"),
+                                    userId = storyUserId,
+                                    mediaUrl = "http://sociallyah.atwebpages.com/i.php?p=${obj.getString("media")}",   // URL from PHP
+                                    mediaType = obj.getString("type"),
+                                    timestamp = obj.getLong("timestamp"),
+                                    username = obj.getString("username"),
+                                    dpUrl = obj.optString("dp")
+                                    // profile picture URL
+                                )
                             )
-                        )
-                    }
+                        }
 
-                    storyAdapter.apply {
-                        stories.clear()
-                        stories.addAll(storyList)
-                        notifyDataSetChanged()
-                    }
+                        storyAdapter.apply {
+                            stories.clear()
+                            stories.addAll(storyList)
+                            notifyDataSetChanged()
+                        }
 
-                } catch (e: Exception) {
-                    Log.e("FETCH_STORIES", "JSON parse error", e)
+                    } catch (e: Exception) {
+                        Log.e("FETCH_STORIES", "JSON parse error", e)
+                    }
+                } else {
+                    Log.e("FETCH_STORIES", "Invalid JSON response (server error): ${trimmed.take(200)}")
                 }
             },
             { error -> Log.e("FETCH_STORIES", error.toString()) }
