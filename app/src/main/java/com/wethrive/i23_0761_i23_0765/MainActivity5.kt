@@ -291,38 +291,41 @@ class MainActivity5 : AppCompatActivity() {
         Volley.newRequestQueue(this).add(request)
     }
     fun fetchPosts() {
-        val url = "http://sociallyah.atwebpages.com/get_post.php"
+        val url = "http://sociallyah.atwebpages.com/get_feedpost.php" // new endpoint
+        val queue = Volley.newRequestQueue(this)
 
-        val request = StringRequest(
+        val request = object : StringRequest(
             Request.Method.GET, url,
-            { response ->
+            StringRequest@{ response ->
                 try {
-                    if (response.isEmpty()) {
-                        Toast.makeText(this, "No posts found", Toast.LENGTH_LONG).show()
+                    val jsonArray = JSONArray(response)
+                    if (jsonArray.length() == 0) {
+                        Toast.makeText(this, "No posts found", Toast.LENGTH_SHORT).show()
                         return@StringRequest
                     }
 
-                    val jsonArray = JSONArray(response)
                     postList.clear()
 
-                    if (jsonArray.length() > 0) {
-                        val obj = jsonArray.getJSONObject(0) // Only the most recent post
+                    for (i in 0 until jsonArray.length()) {
+                        val obj = jsonArray.getJSONObject(i)
                         val mediaBase64 = obj.getString("media")
                         val mediaType = obj.getString("media_type")
 
-                        val post = Post(
-                            postId = obj.getString("post_id"),
-                            userId = obj.getString("user_id"),
-                            mediaBase64List = mutableListOf(mediaBase64),
-                            mediaTypeList = mutableListOf(mediaType),
-                            timestamp = obj.getLong("timestamp"),
-                            username = obj.optString("username", ""),
-                            caption = "", // Add captions if you store them
-                            userProfileBase64 = obj.optString("dp", ""),
-                            likes = mutableListOf()
-                        )
+                        if (mediaBase64.isEmpty()) continue
 
-                        postList.add(post)
+                        postList.add(
+                            Post(
+                                postId = obj.getString("post_id"),
+                                userId = obj.getString("user_id"),
+                                mediaBase64List = mutableListOf(mediaBase64),
+                                mediaTypeList = mutableListOf(mediaType),
+                                timestamp = obj.getLong("timestamp"),
+                                username = obj.optString("username", ""),
+                                caption = "", // no caption in current PHP
+                                userProfileBase64 = obj.optString("dp", ""),
+                                likes = mutableListOf()
+                            )
+                        )
                     }
 
                     postAdapter.notifyDataSetChanged()
@@ -333,12 +336,13 @@ class MainActivity5 : AppCompatActivity() {
                 }
             },
             { error ->
-                Toast.makeText(this, "Fetch failed: ${error.message ?: "Unknown error"}", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "Fetch failed: ${error.message}", Toast.LENGTH_LONG).show()
             }
-        )
+        ) {}
 
-        Volley.newRequestQueue(this).add(request)
+        queue.add(request)
     }
+
 
 
 

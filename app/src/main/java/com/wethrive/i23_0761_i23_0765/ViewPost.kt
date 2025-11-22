@@ -61,13 +61,11 @@ class ViewPost : AppCompatActivity() {
         val queue = Volley.newRequestQueue(this)
 
         val request = object : StringRequest(
-            Request.Method.GET, url,
+            Request.Method.POST, url, // POST instead of GET
             StringRequest@{ response ->
                 try {
                     val jsonArray = JSONArray(response)
                     var postObj: JSONObject? = null
-
-                    // Find the specific post
                     for (i in 0 until jsonArray.length()) {
                         val obj = jsonArray.getJSONObject(i)
                         if (obj.getString("post_id") == postId) {
@@ -75,26 +73,31 @@ class ViewPost : AppCompatActivity() {
                             break
                         }
                     }
-
                     if (postObj == null) {
                         Toast.makeText(this, "Post not found", Toast.LENGTH_SHORT).show()
                         finish()
                         return@StringRequest
                     }
-
                     displayPost(postObj)
-
                 } catch (e: Exception) {
                     e.printStackTrace()
                     Toast.makeText(this, "Failed to parse post", Toast.LENGTH_SHORT).show()
                 }
             },
             { error ->
-                Toast.makeText(this, "Fetch failed: ${error.message ?: "Unknown error"}", Toast.LENGTH_LONG).show()
+                Toast.makeText(
+                    this,
+                    "Fetch failed: ${error.message ?: "Unknown error"}",
+                    Toast.LENGTH_LONG
+                ).show()
             }
-        ) {}
-
+        ) {
+            override fun getParams(): MutableMap<String, String> {
+                return hashMapOf("userId" to uid)
+            }
+        }
         queue.add(request)
+
     }
 
     private fun displayPost(postObj: JSONObject) {
