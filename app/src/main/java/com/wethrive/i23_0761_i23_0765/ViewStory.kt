@@ -55,6 +55,7 @@ class ViewStory : AppCompatActivity() {
     }
 
     private fun fetchStories(userId: String) {
+
         val request = object : StringRequest(
             Method.POST,
             "http://sociallyah.atwebpages.com/get_story.php",

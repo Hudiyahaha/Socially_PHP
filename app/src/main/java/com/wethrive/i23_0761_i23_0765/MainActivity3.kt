@@ -27,6 +27,7 @@ class MainActivity3 : AppCompatActivity() {
         val prefs = getSharedPreferences("user_session", MODE_PRIVATE)
         val userId = prefs.getString("userId", "") ?: ""
         val savedDp = prefs.getString("dp", "")
+
         if (!savedDp.isNullOrEmpty()) {
             val bytes = Base64.decode(savedDp, Base64.DEFAULT)
             val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)

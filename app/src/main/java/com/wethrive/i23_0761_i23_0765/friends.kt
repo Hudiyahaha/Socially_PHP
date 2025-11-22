@@ -12,8 +12,9 @@ import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.*
+import com.android.volley.toolbox.StringRequest
+import com.android.volley.toolbox.Volley
+import org.json.JSONArray
 
 class friends : AppCompatActivity() {
 
@@ -24,11 +25,8 @@ class friends : AppCompatActivity() {
     private lateinit var btnFollowers: Button
     private lateinit var btnFollowing: Button
 
-    private val usersRef: DatabaseReference by lazy { FirebaseDatabase.getInstance().getReference("Users") }
-    private val followersRef by lazy { FirebaseDatabase.getInstance().getReference("Followers") }
-    private val followingRef by lazy { FirebaseDatabase.getInstance().getReference("Following") }
-    private var usersListener: ValueEventListener? = null
-    private var currentUid: String? = null
+    private val allUsers: MutableList<UserData> = mutableListOf()
+    private var currentUsername: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -45,127 +43,65 @@ class friends : AppCompatActivity() {
         recycler.layoutManager = LinearLayoutManager(this)
         recycler.adapter = adapter
 
-        currentUid = FirebaseAuth.getInstance().currentUser?.uid
-        if (currentUid == null) {
-            Toast.makeText(this, "Not signed in", Toast.LENGTH_SHORT).show()
-            finish()
-            return
-        }
+        // Retrieve current username from shared preferences (ensure earlier login code saved it)
+        val prefs = getSharedPreferences("user_session", MODE_PRIVATE)
+        currentUsername = prefs.getString("username", "")
 
-        loadUsers(currentUid!!)
+        fetchFriends()
 
-        // Search functionality
         searchBar.addTextChangedListener(object : TextWatcher {
             override fun afterTextChanged(s: Editable?) {}
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(query: CharSequence?, start: Int, before: Int, count: Int) {
-                val q = query.toString().trim()
-                if (q.isEmpty()) {
-                    loadUsers(currentUid!!)
-                } else {
-                    searchUsers(q)
-                }
-            }
-        })
-
-        // Filter by followers/following
-        btnFollowers.setOnClickListener { loadFollowers(currentUid!!) }
-        btnFollowing.setOnClickListener { loadFollowing(currentUid!!) }
-    }
-
-    private fun loadUsers(currentUid: String) {
-        usersListener?.let { usersRef.removeEventListener(it) }
-        usersListener = usersRef.addValueEventListener(object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                val list = mutableListOf<UserData>()
-                for (child in snapshot.children) {
-                    val uid = child.key ?: continue
-                    if (uid == currentUid) continue
-                    val uname = child.child("uname").getValue(String::class.java) ?: "Unknown"
-                    val email = child.child("email").getValue(String::class.java) ?: ""
-                    val dp = child.child("dp").getValue(String::class.java) ?: ""
-                    val bio = child.child("bio").getValue(String::class.java) ?: ""
-                    list.add(UserData(id = uid, uname = uname, email = email, dp = dp, bio = bio))
-                }
+                val q = query?.toString()?.trim()?.lowercase() ?: ""
+                val list = if (q.isEmpty()) allUsers else allUsers.filter { it.uname.lowercase().contains(q) }
                 adapter.submitList(list)
                 emptyView.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
             }
-
-            override fun onCancelled(error: DatabaseError) {
-                Toast.makeText(this@friends, "Failed to load users: ${error.message}", Toast.LENGTH_SHORT).show()
-            }
         })
+
+        btnFollowers.visibility = View.GONE
+        btnFollowing.visibility = View.GONE
     }
 
-    private fun searchUsers(query: String) {
-        usersRef.orderByChild("uname").startAt(query).endAt(query + "\uf8ff")
-            .addListenerForSingleValueEvent(object : ValueEventListener {
-                override fun onDataChange(snapshot: DataSnapshot) {
-                    val list = mutableListOf<UserData>()
-                    for (child in snapshot.children) {
-                        val uid = child.key ?: continue
-                        if (uid == currentUid) continue
-                        val uname = child.child("uname").getValue(String::class.java) ?: ""
-                        val email = child.child("email").getValue(String::class.java) ?: ""
-                        val dp = child.child("dp").getValue(String::class.java) ?: ""
-                        val bio = child.child("bio").getValue(String::class.java) ?: ""
-                        list.add(UserData(id = uid, uname = uname, email = email, dp = dp, bio = bio))
-                    }
-                    adapter.submitList(list)
-                    emptyView.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
-                }
-
-                override fun onCancelled(error: DatabaseError) {}
-            })
-    }
-
-    private fun loadFollowers(uid: String) {
-        followersRef.child(uid).addListenerForSingleValueEvent(object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                val list = mutableListOf<UserData>()
-                val usersRef = FirebaseDatabase.getInstance().getReference("Users")
-                for (child in snapshot.children) {
-                    val followerId = child.key ?: continue
-                    usersRef.child(followerId).get().addOnSuccessListener {
-                        val user = it.getValue(UserData::class.java)
-                        if (user != null) {
-                            list.add(user)
-                            adapter.submitList(list)
-                            emptyView.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
-                        }
-                    }
-                }
+    private fun fetchFriends() {
+        val prefs = getSharedPreferences("user_session", MODE_PRIVATE)
+        val userId = prefs.getString("userId", "") ?: ""
+        val url = "http://sociallyah.atwebpages.com/get_friends.php"
+        val queue = Volley.newRequestQueue(this)
+        val request = object : StringRequest(Method.POST, url,
+            { response -> parseFriendsResponse(response) },
+            { error ->
+                Toast.makeText(this, "Failed to load users", Toast.LENGTH_LONG).show()
+                emptyView.visibility = View.VISIBLE
             }
-
-            override fun onCancelled(error: DatabaseError) {}
-        })
+        ) {
+            override fun getParams(): MutableMap<String, String> = hashMapOf("userId" to userId)
+        }
+        queue.add(request)
     }
 
-    private fun loadFollowing(uid: String) {
-        followingRef.child(uid).addListenerForSingleValueEvent(object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                val list = mutableListOf<UserData>()
-                val usersRef = FirebaseDatabase.getInstance().getReference("Users")
-                for (child in snapshot.children) {
-                    val followingId = child.key ?: continue
-                    usersRef.child(followingId).get().addOnSuccessListener {
-                        val user = it.getValue(UserData::class.java)
-                        if (user != null) {
-                            list.add(user)
-                            adapter.submitList(list)
-                            emptyView.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
-                        }
-                    }
-                }
+    private fun parseFriendsResponse(response: String) {
+        try {
+            val jsonArray = JSONArray(response)
+            allUsers.clear()
+            for (i in 0 until jsonArray.length()) {
+                val obj = jsonArray.getJSONObject(i)
+                val username = obj.optString("username")
+                if (username.isNullOrBlank()) continue
+                if (!currentUsername.isNullOrBlank() && username == currentUsername) continue // skip self
+                val dp = obj.optString("dp")
+                // We don't have email/bio from API; use defaults
+                val userData = UserData(id = username, uname = username, email = "", dp = dp, bio = "Socially App")
+                allUsers.add(userData)
             }
-
-            override fun onCancelled(error: DatabaseError) {}
-        })
+            adapter.submitList(allUsers)
+            emptyView.visibility = if (allUsers.isEmpty()) View.VISIBLE else View.GONE
+        } catch (e: Exception) {
+            Toast.makeText(this, "Parse error", Toast.LENGTH_SHORT).show()
+            emptyView.visibility = View.VISIBLE
+        }
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        usersListener?.let { usersRef.removeEventListener(it) }
-    }
-
+    override fun onDestroy() { super.onDestroy() }
 }

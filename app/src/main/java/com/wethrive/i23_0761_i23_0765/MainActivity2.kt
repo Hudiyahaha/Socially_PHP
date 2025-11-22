@@ -128,9 +128,6 @@ class MainActivity2 : AppCompatActivity() {
         }
 
 
-
-
-
         login.setOnClickListener {
             val intent= Intent(this,MainActivity4::class.java)
             startActivity(intent)
