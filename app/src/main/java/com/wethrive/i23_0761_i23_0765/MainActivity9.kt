@@ -280,6 +280,8 @@ class MainActivity9 : AppCompatActivity() {
                         }
 
                         if (incoming.isNotEmpty()) {
+                            Log.d("MessagingActivity", "📨 Received ${incoming.size} new messages from server")
+
                             for (m in incoming) {
                                 // Mark message as seen since user is viewing the chat
                                 val seenMessage = m.copy(seen = true)
@@ -288,6 +290,12 @@ class MainActivity9 : AppCompatActivity() {
                                 // Add to UI
                                 adapter.addOrUpdateMessage(seenMessage)
                             }
+
+                            // Auto-scroll to show new messages
+                            if (messages.isNotEmpty()) {
+                                recycler.smoothScrollToPosition(messages.lastIndex)
+                            }
+
                             // mark seen on server too
                             markMessagesSeenOnServer()
                         }
