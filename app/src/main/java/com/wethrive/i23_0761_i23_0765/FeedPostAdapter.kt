@@ -65,28 +65,36 @@ class FeedPostAdapter(private val postList: MutableList<Post>, private val curre
         }
 
         // --- LIKE BUTTON UI ---
-        holder.likeButton.setImageResource(if (post.isLikedByCurrentUser) R.drawable.heart_filled else R.drawable.like)
+        // --- LIKE BUTTON UI ---
+        holder.likeButton.setImageResource(
+            if (post.isLikedByCurrentUser) R.drawable.heart_filled else R.drawable.like
+        )
         holder.likeCount.text = "${post.likesCount} likes"
+        Log.d("DEBUG_LIKE", "Sending like request -> userId: $currentUserId, postId: ${post.postId}")
 
-        // --- LIKE CLICK ---
+
+// --- LIKE CLICK ---
         holder.likeButton.setOnClickListener {
-            val currentlyLiked = post.isLikedByCurrentUser
-
-            // Toggle UI immediately
-            post.isLikedByCurrentUser = !currentlyLiked
-            post.likesCount += if(post.isLikedByCurrentUser) 1 else -1
-            notifyItemChanged(position)
             val url = "http://sociallyah.atwebpages.com/like.php"
             val request = object : StringRequest(Method.POST, url,
                 { response ->
-                    val cleanResponse = response.trim()
+                    try {
+                        val obj = org.json.JSONObject(response)
+                        val status = obj.getString("status") // liked or unliked
+                        val likeCount = obj.getInt("likeCount")
+
+                        // Update post object and UI
+                        post.isLikedByCurrentUser = status == "liked"
+                        post.likesCount = likeCount
+                        notifyItemChanged(position)
+                    } catch (e: Exception) {
+                        Toast.makeText(ctx, "Failed to update like", Toast.LENGTH_SHORT).show()
+                    }
                 },
                 { error ->
-                    post.isLikedByCurrentUser = currentlyLiked
-                    post.likesCount += if(currentlyLiked) 1 else -1
-                    notifyItemChanged(position)
-                    Toast.makeText(ctx, "Like failed", Toast.LENGTH_SHORT).show()
-                }) {
+                    Toast.makeText(ctx, "Like request failed", Toast.LENGTH_SHORT).show()
+                }
+            ) {
                 override fun getParams(): MutableMap<String, String> {
                     return hashMapOf(
                         "postId" to post.postId,

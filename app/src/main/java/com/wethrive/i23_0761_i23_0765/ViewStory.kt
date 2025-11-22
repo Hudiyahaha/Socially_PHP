@@ -56,14 +56,20 @@ class ViewStory : AppCompatActivity() {
         val request = object : StringRequest(
             Method.POST,
             "http://sociallyah.atwebpages.com/get_story.php",
-            { response ->
+            add@{ response ->
                 try {
                     val jsonArray = JSONArray(response)
                     val now = System.currentTimeMillis() / 1000 // seconds
                     val storyAgeLimit = 24 * 60 * 60 // 24 hours in seconds
 
+                    val clickedUserId = intent.getStringExtra("userId") ?: userId
+
                     for (i in 0 until jsonArray.length()) {
                         val obj = jsonArray.getJSONObject(i)
+
+                        // ONLY THIS USER'S STORIES
+                        if (obj.getString("userId") != clickedUserId) continue
+
                         val timestamp = obj.getLong("timestamp")
                         if (now - timestamp <= storyAgeLimit) {
                             stories.add(
@@ -75,13 +81,11 @@ class ViewStory : AppCompatActivity() {
                                     timestamp = timestamp,
                                     username = obj.optString("username", "Unknown"),
                                     dpUrl = obj.optString("dp")
-
-                                    // URL now
                                 )
                             )
-
                         }
                     }
+
 
                     if (stories.isNotEmpty()) {
                         showStory(0)
@@ -119,7 +123,7 @@ class ViewStory : AppCompatActivity() {
                 profile.setImageBitmap(bitmap)
             } catch (e: IllegalArgumentException) {
                 // If decoding fails, fallback to default image
-                profile.setImageResource(R.drawable.me)
+                profile.setImageResource(R.drawable.dummy)
             }
         } else {
             profile.setImageResource(R.drawable.me)

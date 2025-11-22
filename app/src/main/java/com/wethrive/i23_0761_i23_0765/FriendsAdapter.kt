@@ -39,43 +39,37 @@ class FriendsAdapter(
 
     override fun onBindViewHolder(holder: FriendViewHolder, position: Int) {
         val user = items[position]
+
         holder.name.text = user.uname
         holder.bio.text = user.bio
 
-        // Decode Base64 avatar
+        // Avatar
         if (!user.dp.isNullOrBlank()) {
             try {
                 val bytes = Base64.decode(user.dp, Base64.DEFAULT)
                 val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                holder.avatar.setImageBitmap(bmp ?: BitmapFactory.decodeResource(holder.itemView.resources, android.R.drawable.sym_def_app_icon))
-            } catch (e: IllegalArgumentException) {
+                holder.avatar.setImageBitmap(bmp)
+            } catch (e: Exception) {
                 holder.avatar.setImageResource(android.R.drawable.sym_def_app_icon)
             }
         } else {
             holder.avatar.setImageResource(android.R.drawable.sym_def_app_icon)
         }
 
-        // Click -> open profile
+        // 🔥 ONLINE/OFFLINE VIA MYSQL
+//        if (user.online == 1) {
+//            holder.onlineDot.setBackgroundResource(R.drawable.green_dot)
+//        } else {
+//            holder.onlineDot.setBackgroundResource(R.drawable.red_dot)
+//        }
+
         holder.itemView.setOnClickListener {
             val i = Intent(holder.itemView.context, profile::class.java)
             i.putExtra("userId", user.id)
             holder.itemView.context.startActivity(i)
         }
-
-        val userRef = FirebaseDatabase.getInstance().getReference("Users").child(user.id!!)
-        userRef.child("status").addValueEventListener(object : ValueEventListener {
-            override fun onDataChange(dataSnapshot: DataSnapshot) {
-                val status = dataSnapshot.getValue(String::class.java)
-                if (status == "online") {
-                    holder.onlineDot.setBackgroundResource(R.drawable.green_dot)
-                } else {
-                    holder.onlineDot.setBackgroundResource(R.drawable.red_dot)
-                }
-            }
-
-            override fun onCancelled(error: DatabaseError) {}
-        })
     }
+
 
     override fun getItemCount(): Int = items.size
 

@@ -50,6 +50,7 @@ class FollowersActivity : AppCompatActivity() {
                         val email = s.child("email").getValue(String::class.java) ?: ""
                         val dp = s.child("dp").getValue(String::class.java) ?: ""
                         val bio = s.child("bio").getValue(String::class.java) ?: ""
+
                         list.add(UserData(id = id, uname = uname, email = email, dp = dp, bio = bio))
                     }
                     processed++

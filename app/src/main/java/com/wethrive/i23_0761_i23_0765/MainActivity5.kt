@@ -250,6 +250,8 @@ class MainActivity5 : AppCompatActivity() {
             "http://sociallyah.atwebpages.com/get_story.php",
             { response ->
                 try {
+                    Log.e("FETCH_STORIES_RAW", "RAW RESPONSE: [$response]")
+
                     val jsonArray = JSONArray(response)
                     val storyList = mutableListOf<Story>()
 
@@ -293,13 +295,14 @@ class MainActivity5 : AppCompatActivity() {
 
         Volley.newRequestQueue(this).add(request)
     }
-
     fun fetchPosts() {
+        val prefs = getSharedPreferences("user_session", MODE_PRIVATE)
+        val currentUserId = prefs.getString("userId", "") ?: return
         val url = "http://sociallyah.atwebpages.com/get_feedpost.php"
         val queue = Volley.newRequestQueue(this)
 
         val request = object : StringRequest(
-            Request.Method.GET, url,
+            Request.Method.POST, url,
             StringRequest@{ response ->
                 try {
                     val jsonArray = JSONArray(response)
@@ -312,20 +315,22 @@ class MainActivity5 : AppCompatActivity() {
 
                     for (i in 0 until jsonArray.length()) {
                         val obj = jsonArray.getJSONObject(i)
-                        val mediaUrl = obj.getString("media")      // URL from i.php
+                        val mediaUrl = obj.getString("media")
                         val mediaType = obj.getString("media_type")
-                        val dpUrl = obj.optString("dp", "")        // URL from i.php
+                        val dpUrl = obj.optString("dp", "")
+
                         Log.d("FEED", "Post #$i -> mediaUrl: $mediaUrl, mediaType: $mediaType, dp length: ${dpUrl.length}")
+
                         postList.add(
                             Post(
                                 postId = obj.getString("post_id"),
                                 userId = obj.getString("user_id"),
-                                mediaUrlList = listOf(mediaUrl),      // URL list
+                                mediaUrlList = listOf(mediaUrl),
                                 mediaTypeList = listOf(mediaType),
                                 timestamp = obj.getLong("timestamp"),
                                 username = obj.optString("username", ""),
-                                caption = "",                         // add if available later
-                                userProfileBase64 = dpUrl,            // URL now
+                                caption = "",
+                                userProfileBase64 = dpUrl
                             )
                         )
                     }
@@ -341,14 +346,14 @@ class MainActivity5 : AppCompatActivity() {
             { error ->
                 Toast.makeText(this, "Fetch failed: ${error.message}", Toast.LENGTH_LONG).show()
             }
-        ) {}
+        ) {
+            override fun getParams(): MutableMap<String, String> {
+                return hashMapOf("userId" to currentUserId)
+            }
+        }
 
         queue.add(request)
     }
-
-
-
-
 
 
     private fun openCamera() {

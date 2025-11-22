@@ -1,5 +1,7 @@
 package com.wethrive.i23_0761_i23_0765
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -29,15 +31,14 @@ class StoryAdapter(
 
         holder.username.text = story.username
 
-        // Load the story media (image or video thumbnail if applicable) using Picasso
-        if (!story.mediaUrl.isNullOrEmpty()) {
-            Picasso.get()
-                .load(story.mediaUrl)
-                .placeholder(R.drawable.dummy) // default placeholder
-                .error(R.drawable.me)       // fallback if loading fails
-                .into(holder.img)
+
+        val dpBase64 = story.dpUrl  // this is base64, not URL
+
+        val bmp = decodeBase64(dpBase64)
+        if (bmp != null) {
+            holder.img.setImageBitmap(bmp)
         } else {
-            holder.img.setImageResource(R.drawable.me)
+            holder.img.setImageResource(R.drawable.dummy)
         }
 
         holder.itemView.setOnClickListener {
@@ -46,4 +47,13 @@ class StoryAdapter(
     }
 
     override fun getItemCount(): Int = stories.size
+    fun decodeBase64(base64Str: String): Bitmap? {
+        return try {
+            val decodedBytes = android.util.Base64.decode(base64Str, android.util.Base64.DEFAULT)
+            BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
 }

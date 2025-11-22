@@ -47,4 +47,31 @@ class MainActivity3 : AppCompatActivity() {
             finish()
         }
     }
+    override fun onStop() {
+        super.onStop()
+        setOnlineStatus(0)
+    }
+    override fun onStart() {
+        super.onStart()
+        setOnlineStatus(1)
+    }
+    private fun setOnlineStatus(status: Int) {
+        val prefs = getSharedPreferences("user_session", MODE_PRIVATE)
+        val userId = prefs.getString("userId", "") ?: return
+
+        val url = "http://sociallyah.atwebpages.com/set_status.php"
+
+        val req = object : StringRequest(Method.POST, url,
+            { },
+            { }) {
+
+            override fun getParams(): MutableMap<String, String> {
+                return hashMapOf(
+                    "userId" to userId,
+                    "status" to status.toString()
+                )
+            }
+        }
+        Volley.newRequestQueue(this).add(req)
+    }
 }

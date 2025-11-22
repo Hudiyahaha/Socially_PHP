@@ -98,6 +98,7 @@ class friends : AppCompatActivity() {
 
                 val id=obj.optString("uid")
                 val dp = obj.optString("dp")
+
                 // We don't have email/bio from API; use defaults
                 val userData = UserData(id = id, uname = username, email = "", dp = dp, bio = "Hey there! I am using Socially.")
                 allUsers.add(userData)
