@@ -98,9 +98,10 @@ class friends : AppCompatActivity() {
 
                 val id=obj.optString("uid")
                 val dp = obj.optString("dp")
+                val online = obj.optInt("online", 0)
 
                 // We don't have email/bio from API; use defaults
-                val userData = UserData(id = id, uname = username, email = "", dp = dp, bio = "Hey there! I am using Socially.")
+                val userData = UserData(id = id, uname = username, email = "", dp = dp, bio = "Hey there! I am using Socially.",online = online  )
                 allUsers.add(userData)
             }
             adapter.submitList(allUsers)
