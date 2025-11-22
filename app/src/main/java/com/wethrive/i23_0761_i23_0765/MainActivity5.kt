@@ -375,12 +375,36 @@ class MainActivity5 : AppCompatActivity() {
         }
         cameraLauncher.launch(intent)
     }
+    override fun onResume() {
+        super.onResume()
+        // Restart notification polling when activity resumes
+        val prefs = getSharedPreferences("user_session", MODE_PRIVATE)
+        val userId = prefs.getString("userId", "") ?: ""
+        if (userId.isNotBlank()) {
+            NotificationHelper.startNotificationPolling(this, userId)
+        }
+        // Refresh stories when resuming
+        fetchStories()
+    }
+    
+    override fun onPause() {
+        super.onPause()
+        // Stop notification polling when activity is paused to avoid conflicts
+        // This ensures stories can fetch without interference
+        NotificationHelper.stopNotificationPolling()
+    }
+    
     override fun onStart(){
         super.onStart()
-
     }
+    
     override fun onStop(){
         super.onStop()
-
+    }
+    
+    override fun onDestroy() {
+        super.onDestroy()
+        // Ensure notification polling is stopped when activity is destroyed
+        NotificationHelper.stopNotificationPolling()
     }
 }

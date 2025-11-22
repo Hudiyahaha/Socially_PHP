@@ -1728,11 +1728,18 @@ class MainActivity9 : AppCompatActivity() {
 
     private fun detectScreenshot(changedUri: Uri?) {
         try {
+            // Prevent multiple simultaneous detections
+            if (isSendingScreenshot) {
+                Log.d("MainActivity9", "Screenshot detection skipped - send already in progress")
+                return
+            }
+            
             val uri = changedUri ?: MediaStore.Images.Media.EXTERNAL_CONTENT_URI
             val projection = arrayOf(
                 MediaStore.Images.Media.DISPLAY_NAME,
                 MediaStore.Images.Media.RELATIVE_PATH,
-                MediaStore.Images.Media.DATE_ADDED
+                MediaStore.Images.Media.DATE_ADDED,
+                MediaStore.Images.Media._ID
             )
             val sort = MediaStore.Images.Media.DATE_ADDED + " DESC"
             val cursor = if (changedUri != null) {
@@ -1749,6 +1756,12 @@ class MainActivity9 : AppCompatActivity() {
                 } catch (_: Exception) {
                     ""
                 }
+                val id = try {
+                    c.getLong(c.getColumnIndexOrThrow(MediaStore.Images.Media._ID))
+                } catch (_: Exception) {
+                    0L
+                }
+                
                 val descriptor = (name + "|" + rel).lowercase()
                 val isShot = descriptor.contains("screenshot") || rel.contains(
                     "Screenshots",
@@ -1756,11 +1769,17 @@ class MainActivity9 : AppCompatActivity() {
                 )
                 if (isShot) {
                     val now = System.currentTimeMillis()
-                    val key = name + "|" + rel
-                    if (key != lastScreenshotKey || (now - lastScreenshotSentAt) > 2000) {
+                    // Use a more unique key that includes the media ID to prevent duplicates
+                    val key = "${id}_${name}_${rel}"
+                    
+                    // Check if this is a new screenshot (different key) or enough time has passed (5 seconds)
+                    if (key != lastScreenshotKey && (lastScreenshotKey == null || (now - lastScreenshotSentAt) > 5000)) {
                         lastScreenshotKey = key
                         lastScreenshotSentAt = now
+                        Log.d("MainActivity9", "New screenshot detected: $name")
                         sendScreenshotEvent()
+                    } else {
+                        Log.d("MainActivity9", "Screenshot duplicate detected, skipping: $name")
                     }
                 }
             }
