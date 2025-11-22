@@ -57,8 +57,26 @@ class ViewStory : AppCompatActivity() {
             Method.POST,
             "http://sociallyah.atwebpages.com/get_story.php",
             add@{ response ->
+                val trimmed = response.trim()
+                
+                // Check for server error response (JSON object with error field)
+                if (trimmed.startsWith("{")) {
+                    try {
+                        val jsonObj = org.json.JSONObject(trimmed)
+                        if (jsonObj.optBoolean("error", false)) {
+                            val errorMsg = jsonObj.optString("message", "Unknown server error")
+                            Log.e("FETCH_STORIES", "Server error: $errorMsg")
+                            Toast.makeText(this, "Connection limit exceeded. Please try again later.", Toast.LENGTH_SHORT).show()
+                            finish()
+                            return@add
+                        }
+                    } catch (e: Exception) {
+                        Log.e("FETCH_STORIES", "Error parsing error response", e)
+                    }
+                }
+                
                 try {
-                    val jsonArray = JSONArray(response)
+                    val jsonArray = JSONArray(trimmed)
                     val now = System.currentTimeMillis() / 1000 // seconds
                     val storyAgeLimit = 24 * 60 * 60 // 24 hours in seconds
 

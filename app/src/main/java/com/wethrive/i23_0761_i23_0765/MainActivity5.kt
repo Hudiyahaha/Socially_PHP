@@ -249,7 +249,7 @@ class MainActivity5 : AppCompatActivity() {
             "http://sociallyah.atwebpages.com/get_story.php",
             { response ->
                 val trimmed = response.trim()
-                // Check if response is valid JSON (should start with [)
+                // Check if response is valid JSON array (should start with [)
                 if (trimmed.startsWith("[")) {
                     try {
                         Log.e("FETCH_STORIES_RAW", "RAW RESPONSE: [$trimmed]")
@@ -286,6 +286,21 @@ class MainActivity5 : AppCompatActivity() {
 
                     } catch (e: Exception) {
                         Log.e("FETCH_STORIES", "JSON parse error", e)
+                    }
+                } else if (trimmed.startsWith("{")) {
+                    // Handle JSON error response from server
+                    try {
+                        val jsonObj = org.json.JSONObject(trimmed)
+                        if (jsonObj.optBoolean("error", false)) {
+                            val errorMsg = jsonObj.optString("message", "Unknown server error")
+                            Log.e("FETCH_STORIES", "Server error: $errorMsg")
+                            // Optionally show a toast to the user
+                            runOnUiThread {
+                                android.widget.Toast.makeText(this, "Connection limit exceeded. Please try again later.", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e("FETCH_STORIES", "Error parsing error response", e)
                     }
                 } else {
                     Log.e("FETCH_STORIES", "Invalid JSON response (server error): ${trimmed.take(200)}")
