@@ -747,6 +747,7 @@ class MainActivity9 : AppCompatActivity() {
             postId = obj.optString("post_id"),
             timestamp = obj.optLong("timestamp", System.currentTimeMillis()),
             vanishMode = obj.optInt("vanish_mode",0)==1,
+            seen = obj.optInt("seen",0)==1,
             edited = obj.optInt("edited",0)==1,
             deleted = obj.optInt("deleted",0)==1,
             isPending = false,
