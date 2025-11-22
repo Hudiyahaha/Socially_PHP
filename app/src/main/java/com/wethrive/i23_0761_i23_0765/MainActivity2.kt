@@ -1,6 +1,8 @@
 package com.wethrive.i23_0761_i23_0765
 
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
 import android.util.Base64
@@ -10,59 +12,53 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
-
 import androidx.activity.result.contract.ActivityResultContracts
 import com.android.volley.Request
 import com.android.volley.toolbox.StringRequest
 import com.android.volley.toolbox.Volley
 import de.hdodenhof.circleimageview.CircleImageView
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
 
 class MainActivity2 : AppCompatActivity() {
 
     private var selectedImageUri: Uri? = null
+    private var encodedImage: String = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
-
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-
         setContentView(R.layout.activity_main2)
 
-        val name=findViewById<EditText>(R.id.username)
-        val email=findViewById<EditText>(R.id.email)
-        val pass=findViewById<EditText>(R.id.pass)
-        val signup=findViewById<Button>(R.id.signup)
-        val login=findViewById<TextView>(R.id.login)
-        val profile=findViewById<CircleImageView>(R.id.profile_image)
-        var img=""
+        val name = findViewById<EditText>(R.id.username)
+        val email = findViewById<EditText>(R.id.email)
+        val pass = findViewById<EditText>(R.id.pass)
+        val signup = findViewById<Button>(R.id.signup)
+        val login = findViewById<TextView>(R.id.login)
+        val profile = findViewById<CircleImageView>(R.id.profile_image)
+
         val prefs = getSharedPreferences("user_session", MODE_PRIVATE)
         prefs.edit().clear().apply()
 
-        // Launcher to pick an image from gallery
+        // SAFE IMAGE PICKER
         val pickImageLauncher = registerForActivityResult(
             ActivityResultContracts.GetContent()
-        ) { uri: Uri? ->
+        ) { uri ->
             uri?.let {
                 selectedImageUri = it
                 profile.setImageURI(it)
-
-                contentResolver.openInputStream(it)?.use { ins ->
-                    val b = ins.readBytes()
-                    img= Base64.encodeToString(b, Base64.DEFAULT)
-                }
+                processImageSafely(it)
             }
         }
 
-        // Open gallery on profile click
         profile.setOnClickListener {
             pickImageLauncher.launch("image/*")
         }
 
         signup.setOnClickListener {
-            val em = email.text.toString()
-            val pa = pass.text.toString()
-            val uname = name.text.toString()
+            val em = email.text.toString().trim()
+            val pa = pass.text.toString().trim()
+            val uname = name.text.toString().trim()
 
             if (em.isEmpty()) {
                 email.error = "Email required"
@@ -72,7 +68,7 @@ class MainActivity2 : AppCompatActivity() {
                 pass.error = "Password required"
                 return@setOnClickListener
             }
-            if (img.isEmpty()) {
+            if (encodedImage.isEmpty()) {
                 Toast.makeText(this, "Select Profile Image", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
@@ -81,71 +77,79 @@ class MainActivity2 : AppCompatActivity() {
                 Request.Method.POST,
                 "http://sociallyah.atwebpages.com/signup.php",
                 { response ->
-
                     try {
                         val json = JSONObject(response)
 
                         if (json.getInt("status") == 1) {
                             val newUserId = json.getString("uid")
 
-                            // SAVE SESSION
                             val editor = prefs.edit()
                             editor.putString("userId", newUserId)
                             editor.putBoolean("isLoggedIn", true)
                             editor.apply()
 
-                            // Signup successful → move to MainActivity3
-                            val intent = Intent(this, MainActivity3::class.java)
-                            startActivity(intent)
+                            startActivity(Intent(this, MainActivity3::class.java))
                             finish()
 
                         } else {
-                            // Signup failed
                             Toast.makeText(this, json.getString("message"), Toast.LENGTH_LONG).show()
                         }
 
                     } catch (e: Exception) {
                         Toast.makeText(this, "Invalid server response", Toast.LENGTH_LONG).show()
                     }
-
                 },
                 { error ->
                     Toast.makeText(this, error.toString(), Toast.LENGTH_LONG).show()
                 }
             ) {
                 override fun getParams(): Map<String, String> {
-                    val params = HashMap<String, String>()
-                    params["username"] = uname
-                    params["email"] = em
-                    params["password"] = pa
-                    params["image"] = img
-                    return params
+                    return mapOf(
+                        "username" to uname,
+                        "email" to em,
+                        "password" to pa,
+                        "image" to encodedImage
+                    )
                 }
             }
 
-            val queue = Volley.newRequestQueue(this)
-            queue.add(request)
+            Volley.newRequestQueue(this).add(request)
         }
-
-
-
-
 
         login.setOnClickListener {
-            val intent= Intent(this,MainActivity4::class.java)
-            startActivity(intent)
+            startActivity(Intent(this, MainActivity4::class.java))
             finish()
         }
-
     }
 
- override fun onStart() {
-       super.onStart()
+    /**
+     * SAFE IMAGE PROCESSING (Prevents phone shutdowns)
+     */
+    private fun processImageSafely(uri: Uri) {
+        try {
+            val stream = contentResolver.openInputStream(uri)
+            val originalBitmap = BitmapFactory.decodeStream(stream)
 
+            if (originalBitmap == null) {
+                Toast.makeText(this, "Image loading failed", Toast.LENGTH_SHORT).show()
+                return
+            }
+
+            // Resize image to max 600x600 to avoid huge memory load
+            val resizedBitmap = Bitmap.createScaledBitmap(
+                originalBitmap,
+                600,
+                (600f / originalBitmap.width * originalBitmap.height).toInt(),
+                true
+            )
+
+            val output = ByteArrayOutputStream()
+            resizedBitmap.compress(Bitmap.CompressFormat.JPEG, 75, output)
+
+            encodedImage = Base64.encodeToString(output.toByteArray(), Base64.DEFAULT)
+
+        } catch (e: Exception) {
+            Toast.makeText(this, "Image processing error", Toast.LENGTH_SHORT).show()
+        }
     }
-
-//    override fun onSaveInstanceState(outState: Bundle) {
-//        super.onSaveInstanceState(outState)
-//        selectedImageUri?.let { outState.putString("selectedImageUri", it.toString()) }
-//    }
 }
