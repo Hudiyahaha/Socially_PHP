@@ -405,7 +405,8 @@ class MainActivity9 : AppCompatActivity() {
     private fun buildContentKey(sender: String?, text: String?, ts: Long): String {
         val s = sender ?: ""
         val t = text ?: ""
-        val bucket = if (ts>0) ts/2000L else 0L
+        // Use 10-second buckets to avoid false positives while catching real duplicates
+        val bucket = if (ts>0) ts/10000L else 0L
         return "$s|$t|$bucket"
     }
 
