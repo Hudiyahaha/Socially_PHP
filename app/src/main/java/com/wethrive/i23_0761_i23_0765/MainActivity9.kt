@@ -1,10 +1,12 @@
 package com.wethrive.i23_0761_i23_0765
 
+import android.Manifest
 import android.app.Activity
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.net.ConnectivityManager
@@ -17,19 +19,33 @@ import android.os.Looper
 import android.provider.MediaStore
 import android.util.Base64
 import android.util.Log
+import android.view.SurfaceView
+import android.view.View
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.android.volley.toolbox.StringRequest
 import com.android.volley.toolbox.Volley
+import io.agora.rtc2.ChannelMediaOptions
+import io.agora.rtc2.Constants
+import io.agora.rtc2.IRtcEngineEventHandler
+import io.agora.rtc2.RtcEngine
+import io.agora.rtc2.RtcEngineConfig
+import io.agora.rtc2.video.VideoCanvas
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.util.*
 
 class MainActivity9 : AppCompatActivity() {
@@ -61,12 +77,126 @@ class MainActivity9 : AppCompatActivity() {
 
     private val IMAGE_REQ = 101
 
+    // ----------------- Agora Call Variables -----------------
+    private lateinit var audio: ImageView
+    private lateinit var video: ImageView
+    private lateinit var callStatusContainer: LinearLayout
+    private lateinit var callStatusText: TextView
+    private lateinit var callTimerText: TextView
+    private lateinit var callLevelBar: View
+    private var videoCallContainer: FrameLayout? = null
+    private var localVideoContainer: FrameLayout? = null
+    private var remoteVideoContainer: FrameLayout? = null
+    private var endCallButton: ImageView? = null
+    private var switchCameraButton: ImageView? = null
+    private var muteButton: ImageView? = null
+    private var rtcEngine: RtcEngine? = null
+    private var isInVoiceCall: Boolean = false
+    private var isInVideoCall: Boolean = false
+    private var isMuted: Boolean = false
+    private val AUDIO_PERMISSION_REQ_CODE = 201
+    private val VIDEO_PERMISSION_REQ_CODE = 202
+    private val agoraAppId: String = "941f2bca958848af98ccea5d2bda5ab5"
+    private val agoraToken: String? = "007eJxTYDDsXCUqyZEpfNWbT6RsV6LKheungzx9Z4hlXGKcfY9XvlWBwdLEMM0oKTnR0tTCwsQiMc3SIjk5NdE0xSgpJdE0Mcn0sqd6ZkMgI0M+gwgLIwMEgvgODEkplgZmaeaWuuaWSYm6JkaGBrqWyeaJusnJickpyZaGZqbmRvFpJobJFgbGybppialpuiYGJqa6QIONdQ0NDRgYAL58K5U="
+    private var incomingDialog: AlertDialog? = null
+    private var suppressInviteOnJoin: Boolean = false
+    private var pendingCallType: String = "audio"
+    private var callStartTimeMs: Long = 0L
+    private var currentCallId: String? = null
+    private val callPollHandler = Handler(Looper.getMainLooper())
+    private val callPollIntervalMs = 2_000L  // Poll for calls every 2 seconds
+
+    private val timerRunnable = object : Runnable {
+        override fun run() {
+            if ((isInVoiceCall || isInVideoCall) && callStartTimeMs > 0L) {
+                val elapsed = System.currentTimeMillis() - callStartTimeMs
+                callTimerText.text = formatElapsed(elapsed)
+                callPollHandler.postDelayed(this, 1000L)
+            }
+        }
+    }
+
+    private val rtcEventHandler = object : IRtcEngineEventHandler() {
+        override fun onJoinChannelSuccess(channel: String?, uid: Int, elapsed: Int) {
+            Log.d("MainActivity9", "Agora joined channel=$channel uid=$uid")
+            runOnUiThread {
+                callStatusText.text = "Connected"
+                startCallTimer()
+                val callType = if (isInVideoCall) "Video" else "Voice"
+                Toast.makeText(this@MainActivity9, "$callType call started", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        override fun onUserJoined(uid: Int, elapsed: Int) {
+            Log.d("MainActivity9", "Remote user joined: $uid")
+            runOnUiThread {
+                if (isInVideoCall) {
+                    setupRemoteVideo(uid)
+                }
+            }
+        }
+
+        override fun onUserOffline(uid: Int, reason: Int) {
+            Log.d("MainActivity9", "Remote user offline: $uid reason=$reason")
+            runOnUiThread {
+                if (isInVoiceCall || isInVideoCall) {
+                    leaveChannel()
+                    Toast.makeText(this@MainActivity9, "Remote user left. Call ended.", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        override fun onError(err: Int) {
+            Log.e("MainActivity9", "Agora onError: $err")
+            runOnUiThread {
+                Toast.makeText(this@MainActivity9, "Agora error: $err", Toast.LENGTH_LONG).show()
+                if (!isInVoiceCall && !isInVideoCall) {
+                    hideCallStatusUI()
+                }
+            }
+        }
+
+        override fun onConnectionStateChanged(state: Int, reason: Int) {
+            Log.d("MainActivity9", "Connection state=$state reason=$reason")
+            runOnUiThread {
+                when (state) {
+                    Constants.CONNECTION_STATE_CONNECTING -> callStatusText.text = "Connecting..."
+                    Constants.CONNECTION_STATE_CONNECTED -> callStatusText.text = "Connected"
+                    Constants.CONNECTION_STATE_RECONNECTING -> callStatusText.text = "Reconnecting..."
+                    Constants.CONNECTION_STATE_FAILED, Constants.CONNECTION_STATE_DISCONNECTED -> {
+                        if (!isInVoiceCall && !isInVideoCall) hideCallStatusUI()
+                    }
+                }
+            }
+        }
+
+        override fun onAudioVolumeIndication(
+            speakers: Array<out IRtcEngineEventHandler.AudioVolumeInfo>?,
+            totalVolume: Int
+        ) {
+            val level = (totalVolume.coerceIn(0, 255)) / 255f
+            runOnUiThread {
+                callLevelBar.alpha = 0.2f + 0.8f * level
+                callLevelBar.scaleX = 0.5f + 1.5f * level
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main9)
 
         receiverId = intent.getStringExtra("receiverId") ?: "user_b"
+        // Create chatId for messaging (same format used for Agora channel name)
+        // Format: "userId1_userId2" (sorted lexicographically to ensure consistency)
         chatId = if (currentUserId < receiverId) currentUserId + "_" + receiverId else receiverId + "_" + currentUserId
+        
+        // Log the channel name that will be used for Agora (for token generation reference)
+        Log.d("MainActivity9", "=== CHANNEL NAME INFO ===")
+        Log.d("MainActivity9", "ChatId (messaging): $chatId")
+        Log.d("MainActivity9", "Agora channel name will be: ${sanitizeChannelName(chatId)}")
+        Log.d("MainActivity9", "Generate your Agora token for channel: '${sanitizeChannelName(chatId)}'")
+        Log.d("MainActivity9", "=========================")
 
         recycler = findViewById(R.id.recyclerChat)
         etMessage = findViewById(R.id.etMessage)
@@ -84,6 +214,43 @@ class MainActivity9 : AppCompatActivity() {
         btnSend.setOnClickListener { onSendClicked() }
         btnAttach.setOnClickListener { pickImage() }
         vanishModeToggle.setOnClickListener { toggleVanishMode() }
+
+        // Initialize Agora call UI elements
+        audio = findViewById(R.id.audio)
+        video = findViewById(R.id.video)
+        callStatusContainer = findViewById(R.id.call_status_container)
+        callStatusText = findViewById(R.id.call_status_text)
+        callTimerText = findViewById(R.id.call_timer_text)
+        callLevelBar = findViewById(R.id.call_level_bar)
+
+        // Agora call button listeners
+        audio.setOnClickListener {
+            if (!isInVoiceCall && !isInVideoCall) {
+                pendingCallType = "audio"
+                if (!hasAudioPermissions()) {
+                    requestAudioPermissions()
+                } else {
+                    startVoiceCalling()
+                }
+            } else {
+                leaveChannel()
+                Toast.makeText(this, "Call ended", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        video.setOnClickListener {
+            if (!isInVoiceCall && !isInVideoCall) {
+                pendingCallType = "video"
+                if (!hasVideoPermissions()) {
+                    requestVideoPermissions()
+                } else {
+                    startVideoCalling()
+                }
+            } else {
+                leaveChannel()
+                Toast.makeText(this, "Call ended", Toast.LENGTH_SHORT).show()
+            }
+        }
 
         // Set up back arrow
         findViewById<ImageView>(R.id.back_arrow)?.setOnClickListener {
@@ -107,6 +274,9 @@ class MainActivity9 : AppCompatActivity() {
 
         // listen to network up events
         registerReceiver(netReceiver, IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION))
+
+        // Start polling for incoming calls
+        startCallPolling()
     }
 
     override fun onResume() {
@@ -117,6 +287,8 @@ class MainActivity9 : AppCompatActivity() {
         // Start polling
         handler.removeCallbacksAndMessages(null)
         handler.postDelayed(fetchAndRetryRunnable, retryIntervalMs)
+        // Resume call polling
+        startCallPolling()
     }
 
     override fun onPause() {
@@ -124,6 +296,7 @@ class MainActivity9 : AppCompatActivity() {
         // Stop polling when chat is not visible
         Log.d("MessagingActivity", "=== CHAT PAUSED - Stopping polling ===")
         handler.removeCallbacksAndMessages(null)
+        callPollHandler.removeCallbacksAndMessages(null)
     }
 
     override fun onDestroy() {
@@ -131,6 +304,11 @@ class MainActivity9 : AppCompatActivity() {
 
         // Delete vanish mode messages when closing the chat
         deleteVanishModeMessages()
+
+        // Cleanup Agora
+        cleanupAgoraEngine()
+        incomingDialog?.dismiss()
+        callPollHandler.removeCallbacksAndMessages(null)
 
         try { unregisterReceiver(netReceiver) } catch (_: Exception) {}
         handler.removeCallbacksAndMessages(null)
@@ -753,5 +931,688 @@ class MainActivity9 : AppCompatActivity() {
             isPending = false,
             deliveryState = 1
         )
+    }
+
+    // ----------------- Agora Call Functions -----------------
+
+    private fun startCallPolling() {
+        val pollRunnable = object : Runnable {
+            override fun run() {
+                checkForIncomingCall()
+                callPollHandler.postDelayed(this, callPollIntervalMs)
+            }
+        }
+        callPollHandler.post(pollRunnable)
+    }
+
+    private fun checkForIncomingCall() {
+        val url = BASE_URL + "call_get.php"
+        val req = object : StringRequest(
+            Method.POST, url,
+            { resp ->
+                try {
+                    val j = JSONObject(resp)
+                    if (j.optInt("status", 0) == 1) {
+                        val callObj = j.optJSONObject("call")
+                        if (callObj != null) {
+                            val status = callObj.optString("status")
+                            val callerId = callObj.optString("caller_id")
+                            val calleeId = callObj.optString("callee_id")
+                            val callType = callObj.optString("call_type", "audio")
+                            val callId = callObj.optString("call_id")
+
+                            // Only show dialog if it's an incoming call for current user
+                            if (status == "ringing" && calleeId == currentUserId && callerId != currentUserId && !isInVoiceCall && !isInVideoCall) {
+                                if (incomingDialog?.isShowing != true) {
+                                    currentCallId = callId
+                                    showIncomingCallDialog(callerId, callType)
+                                }
+                            } else if (status == "ended" && (isInVoiceCall || isInVideoCall)) {
+                                incomingDialog?.dismiss()
+                                incomingDialog = null
+                                leaveChannel()
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e("MainActivity9", "Error checking call: ${e.message}")
+                }
+            },
+            { err -> Log.e("MainActivity9", "Call check error: ${err.message}") }
+        ) {
+            override fun getParams(): MutableMap<String, String> =
+                hashMapOf("chat_id" to chatId, "user_id" to currentUserId)
+        }
+        req.setShouldCache(false)
+        Volley.newRequestQueue(this).add(req)
+    }
+
+    private fun showIncomingCallDialog(callerId: String, callType: String) {
+        val callTypeText = if (callType == "video") "video" else "audio"
+        val builder = AlertDialog.Builder(this)
+            .setTitle("Incoming Call")
+            .setMessage("Incoming $callTypeText call from $callerId...")
+            .setCancelable(false)
+            .setPositiveButton("Accept") { dialog, _ ->
+                suppressInviteOnJoin = true
+                pendingCallType = callType
+                updateCallStatus("ongoing")
+                if (callType == "video") {
+                    if (hasVideoPermissions()) {
+                        startVideoCalling()
+                    } else {
+                        requestVideoPermissions()
+                    }
+                } else {
+                    if (hasAudioPermissions()) {
+                        startVoiceCalling()
+                    } else {
+                        requestAudioPermissions()
+                    }
+                }
+                dialog.dismiss()
+                incomingDialog = null
+            }
+            .setNegativeButton("Decline") { dialog, _ ->
+                updateCallStatus("declined")
+                dialog.dismiss()
+                incomingDialog = null
+            }
+        incomingDialog = builder.create()
+        incomingDialog?.show()
+    }
+
+    private fun sendCallInvite(callType: String) {
+        val url = BASE_URL + "call_create.php"
+        val req = object : StringRequest(
+            Method.POST, url,
+            { resp ->
+                try {
+                    val j = JSONObject(resp)
+                    if (j.optInt("status", 0) == 1) {
+                        currentCallId = j.optString("call_id")
+                        Log.d("MainActivity9", "Call invite sent: $currentCallId")
+                    } else {
+                        Log.e("MainActivity9", "Failed to create call: ${j.optString("error")}")
+                    }
+                } catch (e: Exception) {
+                    Log.e("MainActivity9", "Error sending call invite: ${e.message}")
+                }
+            },
+            { err -> Log.e("MainActivity9", "Call invite error: ${err.message}") }
+        ) {
+            override fun getParams(): MutableMap<String, String> =
+                hashMapOf(
+                    "chat_id" to chatId,
+                    "caller_id" to currentUserId,
+                    "callee_id" to receiverId,
+                    "call_type" to callType
+                )
+        }
+        req.setShouldCache(false)
+        Volley.newRequestQueue(this).add(req)
+    }
+
+    private fun updateCallStatus(status: String) {
+        val callId = currentCallId ?: return
+        val url = BASE_URL + "call_update.php"
+        val req = object : StringRequest(
+            Method.POST, url,
+            { /* ignore response */ },
+            { err -> Log.e("MainActivity9", "Update call status error: ${err.message}") }
+        ) {
+            override fun getParams(): MutableMap<String, String> =
+                hashMapOf("call_id" to callId, "status" to status)
+        }
+        req.setShouldCache(false)
+        Volley.newRequestQueue(this).add(req)
+    }
+
+    private fun getAudioPermissions(): Array<String> {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            arrayOf(
+                Manifest.permission.RECORD_AUDIO,
+                Manifest.permission.READ_PHONE_STATE,
+                Manifest.permission.BLUETOOTH_CONNECT
+            )
+        } else {
+            arrayOf(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    private fun getVideoPermissions(): Array<String> {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            arrayOf(
+                Manifest.permission.RECORD_AUDIO,
+                Manifest.permission.CAMERA,
+                Manifest.permission.READ_PHONE_STATE,
+                Manifest.permission.BLUETOOTH_CONNECT
+            )
+        } else {
+            arrayOf(
+                Manifest.permission.RECORD_AUDIO,
+                Manifest.permission.CAMERA
+            )
+        }
+    }
+
+    private fun hasAudioPermissions(): Boolean {
+        return getAudioPermissions().all { perm ->
+            ContextCompat.checkSelfPermission(this, perm) == PackageManager.PERMISSION_GRANTED
+        }
+    }
+
+    private fun hasVideoPermissions(): Boolean {
+        return getVideoPermissions().all { perm ->
+            ContextCompat.checkSelfPermission(this, perm) == PackageManager.PERMISSION_GRANTED
+        }
+    }
+
+    private fun requestAudioPermissions() {
+        ActivityCompat.requestPermissions(this, getAudioPermissions(), AUDIO_PERMISSION_REQ_CODE)
+    }
+
+    private fun requestVideoPermissions() {
+        ActivityCompat.requestPermissions(this, getVideoPermissions(), VIDEO_PERMISSION_REQ_CODE)
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == AUDIO_PERMISSION_REQ_CODE) {
+            if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
+                startVoiceCalling()
+            } else {
+                Toast.makeText(this, "Microphone permission is required for audio calls", Toast.LENGTH_LONG).show()
+            }
+        } else if (requestCode == VIDEO_PERMISSION_REQ_CODE) {
+            if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
+                startVideoCalling()
+            } else {
+                Toast.makeText(this, "Camera and microphone permissions are required for video calls", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    private fun startVoiceCalling() {
+        if (isInVoiceCall || isInVideoCall) {
+            Toast.makeText(this, "Already in call", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (agoraAppId.isBlank() || agoraAppId.startsWith("<")) {
+            Toast.makeText(this, "Set your Agora App ID in MainActivity9", Toast.LENGTH_LONG).show()
+            Log.e("MainActivity9", "Agora App ID is not set")
+            return
+        }
+        
+        // Log the channel name being used (for token generation reference)
+        val channelName = sanitizeChannelName(chatId)
+        Log.i("MainActivity9", "Starting voice call with channel: '$channelName'")
+        Log.i("MainActivity9", "Make sure your Agora token is generated for channel: '$channelName'")
+        
+        if (!suppressInviteOnJoin) {
+            sendCallInvite("audio")
+        }
+        showCallStatusUI(connecting = true)
+        initializeAgoraVoiceSDK()
+        joinVoiceChannel()
+        suppressInviteOnJoin = false
+    }
+
+    private fun startVideoCalling() {
+        if (isInVoiceCall || isInVideoCall) {
+            Toast.makeText(this, "Already in call", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (agoraAppId.isBlank() || agoraAppId.startsWith("<")) {
+            Toast.makeText(this, "Set your Agora App ID in MainActivity9", Toast.LENGTH_LONG).show()
+            Log.e("MainActivity9", "Agora App ID is not set")
+            return
+        }
+        
+        // Log the channel name being used (for token generation reference)
+        val channelName = sanitizeChannelName(chatId)
+        Log.i("MainActivity9", "Starting video call with channel: '$channelName'")
+        Log.i("MainActivity9", "Make sure your Agora token is generated for channel: '$channelName'")
+        
+        if (!suppressInviteOnJoin) {
+            sendCallInvite("video")
+        }
+        showVideoCallUI()
+        initializeAgoraVideoSDK()
+        enableVideo()
+        setupLocalVideo()
+        joinVideoChannel()
+        suppressInviteOnJoin = false
+    }
+
+    private fun initializeAgoraVoiceSDK() {
+        try {
+            val config = RtcEngineConfig().apply {
+                mContext = applicationContext
+                mAppId = agoraAppId
+                mEventHandler = rtcEventHandler
+                mLogConfig = RtcEngineConfig.LogConfig().apply {
+                    filePath = File(filesDir, "agora.log").absolutePath
+                }
+            }
+            rtcEngine = RtcEngine.create(config)
+            rtcEngine?.setChannelProfile(Constants.CHANNEL_PROFILE_COMMUNICATION)
+            rtcEngine?.setClientRole(Constants.CLIENT_ROLE_BROADCASTER)
+            try { rtcEngine?.enableAudioVolumeIndication(200, 3, true) } catch (_: Throwable) {}
+        } catch (e: Exception) {
+            Log.e("MainActivity9", "Error initializing Agora RTC engine", e)
+            Toast.makeText(this, "Failed to init voice engine: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+            hideCallStatusUI()
+        }
+    }
+
+    private fun initializeAgoraVideoSDK() {
+        try {
+            val config = RtcEngineConfig().apply {
+                mContext = applicationContext
+                mAppId = agoraAppId
+                mEventHandler = rtcEventHandler
+                mLogConfig = RtcEngineConfig.LogConfig().apply {
+                    filePath = File(filesDir, "agora_video.log").absolutePath
+                }
+            }
+            rtcEngine = RtcEngine.create(config)
+            rtcEngine?.setChannelProfile(Constants.CHANNEL_PROFILE_COMMUNICATION)
+            rtcEngine?.setClientRole(Constants.CLIENT_ROLE_BROADCASTER)
+        } catch (e: Exception) {
+            Log.e("MainActivity9", "Error initializing Agora video engine", e)
+            Toast.makeText(this, "Failed to init video engine: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+            hideVideoCallUI()
+        }
+    }
+
+    private fun enableVideo() {
+        rtcEngine?.apply {
+            enableVideo()
+            startPreview()
+        }
+    }
+
+    private fun setupLocalVideo() {
+        val container = localVideoContainer ?: run {
+            Log.w("MainActivity9", "Local video container is null, cannot setup local video")
+            return
+        }
+
+        container.removeAllViews()
+
+        val surfaceView = SurfaceView(baseContext).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+            setZOrderMediaOverlay(true)
+        }
+        container.addView(surfaceView)
+        rtcEngine?.setupLocalVideo(VideoCanvas(surfaceView, VideoCanvas.RENDER_MODE_HIDDEN, 0))
+        Log.d("MainActivity9", "Local video setup complete")
+    }
+
+    private fun setupRemoteVideo(uid: Int) {
+        val container = remoteVideoContainer ?: run {
+            Log.w("MainActivity9", "Remote video container is null")
+            return
+        }
+        runOnUiThread {
+            container.removeAllViews()
+
+            val surfaceView = SurfaceView(applicationContext).apply {
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                )
+            }
+            container.addView(surfaceView)
+            rtcEngine?.setupRemoteVideo(VideoCanvas(surfaceView, VideoCanvas.RENDER_MODE_HIDDEN, uid))
+            Log.d("MainActivity9", "Remote video setup complete for uid=$uid")
+
+            setupLocalVideo()
+        }
+    }
+
+    private fun joinVoiceChannel() {
+        val engine = rtcEngine ?: return
+        
+        // Sanitize channel name for Agora
+        val agoraChannelName = sanitizeChannelName(chatId)
+        
+        val options = ChannelMediaOptions().apply {
+            clientRoleType = Constants.CLIENT_ROLE_BROADCASTER
+            channelProfile = Constants.CHANNEL_PROFILE_COMMUNICATION
+            publishMicrophoneTrack = true
+            publishCameraTrack = false
+            autoSubscribeAudio = true
+            autoSubscribeVideo = false
+        }
+        
+        Log.d("MainActivity9", "Joining channel: '$agoraChannelName' (original: '$chatId')")
+        Log.d("MainActivity9", "Token present: ${agoraToken != null}, AppId: $agoraAppId")
+        
+        val rc = engine.joinChannel(agoraToken, agoraChannelName, 0, options)
+        Log.d("MainActivity9", "joinChannel rc=$rc channel='$agoraChannelName'")
+        
+        if (rc == 0) {
+            isInVoiceCall = true
+            callStatusText.text = "Connecting..."
+        } else {
+            val errorMsg = when (rc) {
+                -2 -> "Invalid argument"
+                -3 -> "SDK not initialized"
+                -5 -> "Invalid app ID"
+                -7 -> "Invalid channel name"
+                -102 -> "Invalid channel name format"
+                -113 -> "Channel name too long (max 64 bytes)"
+                else -> "Error code: $rc"
+            }
+            Toast.makeText(this, "Failed to join channel: $errorMsg", Toast.LENGTH_LONG).show()
+            Log.e("MainActivity9", "joinChannel failed rc=$rc channel='$agoraChannelName' length=${agoraChannelName.toByteArray().size}")
+            hideCallStatusUI()
+        }
+    }
+
+    private fun joinVideoChannel() {
+        val engine = rtcEngine ?: return
+        
+        // Sanitize channel name for Agora
+        val agoraChannelName = sanitizeChannelName(chatId)
+        
+        val options = ChannelMediaOptions().apply {
+            clientRoleType = Constants.CLIENT_ROLE_BROADCASTER
+            channelProfile = Constants.CHANNEL_PROFILE_COMMUNICATION
+            publishMicrophoneTrack = true
+            publishCameraTrack = true
+            autoSubscribeAudio = true
+            autoSubscribeVideo = true
+        }
+        
+        Log.d("MainActivity9", "Joining video channel: '$agoraChannelName' (original: '$chatId')")
+        
+        val rc = engine.joinChannel(agoraToken, agoraChannelName, 0, options)
+        Log.d("MainActivity9", "joinVideoChannel rc=$rc channel='$agoraChannelName'")
+        
+        if (rc == 0) {
+            isInVideoCall = true
+            callStatusText.text = "Connecting..."
+        } else {
+            val errorMsg = when (rc) {
+                -2 -> "Invalid argument"
+                -3 -> "SDK not initialized"
+                -5 -> "Invalid app ID"
+                -7 -> "Invalid channel name"
+                -102 -> "Invalid channel name format"
+                -113 -> "Channel name too long (max 64 bytes)"
+                else -> "Error code: $rc"
+            }
+            Toast.makeText(this, "Failed to join video channel: $errorMsg", Toast.LENGTH_LONG).show()
+            Log.e("MainActivity9", "joinVideoChannel failed rc=$rc channel='$agoraChannelName' length=${agoraChannelName.toByteArray().size}")
+            hideVideoCallUI()
+        }
+    }
+
+    private fun leaveChannel() {
+        rtcEngine?.leaveChannel()
+
+        if (isInVideoCall) {
+            rtcEngine?.stopPreview()
+            localVideoContainer?.removeAllViews()
+            remoteVideoContainer?.removeAllViews()
+            hideVideoCallUI()
+        }
+
+        isInVoiceCall = false
+        isInVideoCall = false
+        isMuted = false
+        stopCallTimer()
+        hideCallStatusUI()
+        updateCallStatus("ended")
+    }
+
+    private fun cleanupAgoraEngine() {
+        try {
+            leaveChannel()
+            RtcEngine.destroy()
+        } catch (_: Exception) { }
+        rtcEngine = null
+    }
+
+    private fun showCallStatusUI(connecting: Boolean) {
+        callStatusContainer.visibility = View.VISIBLE
+        callStatusText.text = if (connecting) "Connecting..." else "Connected"
+        callTimerText.text = "00:00"
+        callLevelBar.alpha = 0.2f
+        callLevelBar.scaleX = 0.5f
+    }
+
+    private fun hideCallStatusUI() {
+        callStatusContainer.visibility = View.GONE
+    }
+
+    private fun showVideoCallUI() {
+        if (videoCallContainer == null) {
+            videoCallContainer = FrameLayout(this).apply {
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                )
+                setBackgroundColor(0xFF1A1A1A.toInt())
+                id = View.generateViewId()
+            }
+
+            remoteVideoContainer = FrameLayout(this).apply {
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                )
+                id = View.generateViewId()
+            }
+            videoCallContainer?.addView(remoteVideoContainer)
+
+            localVideoContainer = FrameLayout(this).apply {
+                val width = (140 * resources.displayMetrics.density).toInt()
+                val height = (200 * resources.displayMetrics.density).toInt()
+                layoutParams = FrameLayout.LayoutParams(width, height).apply {
+                    topMargin = (60 * resources.displayMetrics.density).toInt()
+                    marginEnd = (20 * resources.displayMetrics.density).toInt()
+                    gravity = android.view.Gravity.TOP or android.view.Gravity.END
+                }
+                setBackgroundResource(R.drawable.bg_local_video)
+                elevation = 8f * resources.displayMetrics.density
+                clipToOutline = true
+                outlineProvider = object : android.view.ViewOutlineProvider() {
+                    override fun getOutline(view: View, outline: android.graphics.Outline) {
+                        outline.setRoundRect(0, 0, view.width, view.height, 12f * resources.displayMetrics.density)
+                    }
+                }
+                id = View.generateViewId()
+            }
+            videoCallContainer?.addView(localVideoContainer)
+
+            val controlsContainer = LinearLayout(this).apply {
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    bottomMargin = (50 * resources.displayMetrics.density).toInt()
+                    gravity = android.view.Gravity.BOTTOM or android.view.Gravity.CENTER_HORIZONTAL
+                }
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(
+                    (24 * resources.displayMetrics.density).toInt(),
+                    (16 * resources.displayMetrics.density).toInt(),
+                    (24 * resources.displayMetrics.density).toInt(),
+                    (16 * resources.displayMetrics.density).toInt()
+                )
+                setBackgroundResource(R.drawable.bg_local_video)
+                elevation = 4f * resources.displayMetrics.density
+            }
+
+            muteButton = ImageView(this).apply {
+                val buttonSize = (56 * resources.displayMetrics.density).toInt()
+                layoutParams = LinearLayout.LayoutParams(buttonSize, buttonSize).apply {
+                    marginEnd = (20 * resources.displayMetrics.density).toInt()
+                }
+                setBackgroundResource(R.drawable.bg_call_button)
+                setImageResource(R.drawable.ic_mic)
+                scaleType = ImageView.ScaleType.CENTER_INSIDE
+                setPadding(
+                    (14 * resources.displayMetrics.density).toInt(),
+                    (14 * resources.displayMetrics.density).toInt(),
+                    (14 * resources.displayMetrics.density).toInt(),
+                    (14 * resources.displayMetrics.density).toInt()
+                )
+                elevation = 2f * resources.displayMetrics.density
+                setOnClickListener {
+                    isMuted = !isMuted
+                    rtcEngine?.muteLocalAudioStream(isMuted)
+                    if (isMuted) {
+                        setImageResource(R.drawable.ic_mic_off)
+                        setColorFilter(0xFFFF5252.toInt())
+                    } else {
+                        setImageResource(R.drawable.ic_mic)
+                        clearColorFilter()
+                    }
+                }
+            }
+            controlsContainer.addView(muteButton)
+
+            endCallButton = ImageView(this).apply {
+                val buttonSize = (70 * resources.displayMetrics.density).toInt()
+                layoutParams = LinearLayout.LayoutParams(buttonSize, buttonSize).apply {
+                    marginStart = (8 * resources.displayMetrics.density).toInt()
+                    marginEnd = (8 * resources.displayMetrics.density).toInt()
+                }
+                setBackgroundResource(R.drawable.bg_end_call_button)
+                setImageResource(R.drawable.ic_call_end)
+                scaleType = ImageView.ScaleType.CENTER_INSIDE
+                setPadding(
+                    (18 * resources.displayMetrics.density).toInt(),
+                    (18 * resources.displayMetrics.density).toInt(),
+                    (18 * resources.displayMetrics.density).toInt(),
+                    (18 * resources.displayMetrics.density).toInt()
+                )
+                elevation = 4f * resources.displayMetrics.density
+                rotation = 135f
+                setOnClickListener {
+                    leaveChannel()
+                    Toast.makeText(this@MainActivity9, "Call ended", Toast.LENGTH_SHORT).show()
+                }
+            }
+            controlsContainer.addView(endCallButton)
+
+            switchCameraButton = ImageView(this).apply {
+                val buttonSize = (56 * resources.displayMetrics.density).toInt()
+                layoutParams = LinearLayout.LayoutParams(buttonSize, buttonSize).apply {
+                    marginStart = (20 * resources.displayMetrics.density).toInt()
+                }
+                setBackgroundResource(R.drawable.bg_call_button)
+                setImageResource(R.drawable.ic_flip_camera)
+                scaleType = ImageView.ScaleType.CENTER_INSIDE
+                setPadding(
+                    (14 * resources.displayMetrics.density).toInt(),
+                    (14 * resources.displayMetrics.density).toInt(),
+                    (14 * resources.displayMetrics.density).toInt(),
+                    (14 * resources.displayMetrics.density).toInt()
+                )
+                elevation = 2f * resources.displayMetrics.density
+                setOnClickListener {
+                    rtcEngine?.switchCamera()
+                    animate().rotationBy(180f).setDuration(300).start()
+                }
+            }
+            controlsContainer.addView(switchCameraButton)
+
+            videoCallContainer?.addView(controlsContainer)
+
+            val rootView = window.decorView.findViewById<FrameLayout>(android.R.id.content)
+            rootView.addView(videoCallContainer)
+        }
+
+        videoCallContainer?.visibility = View.VISIBLE
+        showCallStatusUI(connecting = true)
+    }
+
+    private fun hideVideoCallUI() {
+        videoCallContainer?.visibility = View.GONE
+    }
+
+    private fun formatElapsed(ms: Long): String {
+        val totalSec = (ms / 1000).toInt()
+        val minutes = totalSec / 60
+        val seconds = totalSec % 60
+        return String.format(java.util.Locale.getDefault(), "%02d:%02d", minutes, seconds)
+    }
+
+    private fun startCallTimer() {
+        callStartTimeMs = System.currentTimeMillis()
+        callPollHandler.removeCallbacksAndMessages(null)
+        callPollHandler.post(timerRunnable)
+    }
+
+    private fun stopCallTimer() {
+        callStartTimeMs = 0L
+        callPollHandler.removeCallbacksAndMessages(null)
+        callTimerText.text = "00:00"
+    }
+
+    /**
+     * Sanitize channel name for Agora
+     * 
+     * IMPORTANT: The token you generate MUST match the EXACT channel name returned by this function.
+     * 
+     * Agora channel names must:
+     * - Be max 64 bytes
+     * - Contain only: a-z, A-Z, 0-9, space, !, #, $, %, &, (, ), +, -, :, ;, <, =, >, ?, @, [, ], ^, _, {, }, |, ~, comma, .
+     * 
+     * The channel name format is: "userId1_userId2" (where userIds are sorted lexicographically)
+     * Example: If currentUserId="user_a" and receiverId="user_b", channel name = "user_a_user_b"
+     * 
+     * @return The sanitized channel name that matches what Agora expects
+     */
+    private fun sanitizeChannelName(name: String): String {
+        // Most userIds are already valid (alphanumeric + underscore), so this usually doesn't change anything
+        // But we sanitize to be safe in case userIds contain special characters
+        
+        // Remove any invalid characters (keep only alphanumeric, underscore, hyphen)
+        // Note: If your userIds are simple like "user_a", "user_b", this won't change anything
+        var sanitized = name.replace(Regex("[^a-zA-Z0-9_\\-]"), "_")
+        
+        // Ensure it's not empty
+        if (sanitized.isEmpty()) {
+            sanitized = "channel_${System.currentTimeMillis()}"
+        }
+        
+        // Truncate to 64 bytes max (Agora requirement)
+        val bytes = sanitized.toByteArray(Charsets.UTF_8)
+        if (bytes.size > 64) {
+            // Truncate to fit 64 bytes
+            var truncated = ""
+            for (char in sanitized) {
+                val testBytes = (truncated + char).toByteArray(Charsets.UTF_8)
+                if (testBytes.size > 64) break
+                truncated += char
+            }
+            sanitized = truncated
+            Log.w("MainActivity9", "WARNING: Channel name truncated from ${bytes.size} to ${sanitized.toByteArray(Charsets.UTF_8).size} bytes")
+        }
+        
+        // Log the transformation (only if it changed)
+        if (sanitized != name) {
+            Log.w("MainActivity9", "Channel name sanitized: '$name' -> '$sanitized'")
+        }
+        
+        return sanitized
+    }
+    
+    /**
+     * Get the exact Agora channel name that will be used
+     * Use this to generate your Agora token
+     */
+    fun getAgoraChannelName(): String {
+        return sanitizeChannelName(chatId)
     }
 }
