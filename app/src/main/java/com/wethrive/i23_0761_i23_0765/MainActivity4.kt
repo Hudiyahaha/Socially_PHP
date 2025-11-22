@@ -46,7 +46,6 @@ class MainActivity4 : AppCompatActivity() {
                 Method.POST, url,
                 { response ->
 
-
                     Toast.makeText(this, response, Toast.LENGTH_LONG).show()
 
                     val json = JSONObject(response)
@@ -60,13 +59,12 @@ class MainActivity4 : AppCompatActivity() {
                             putBoolean("isLoggedIn", true)
                             putBoolean("isFirstTime", false)
 
-
-                            putString("userId", json.getString("uid"))      // NEW
+                            putString("userId", json.getString("uid"))
                             putString("username", json.getString("username"))
                             putString("email", json.getString("email"))
-                            putString("dp", json.getString("dp"))        // UPDATED
-                            putString("bio", json.getString("bio"))      // OPTIONAL
-                            putInt("online", json.getInt("online"))      // OPTIONAL
+                            putString("dp", json.getString("dp"))
+                            putString("bio", json.getString("bio"))
+                            putInt("online", json.getInt("online"))
 
                             apply()
                         }
@@ -85,13 +83,17 @@ class MainActivity4 : AppCompatActivity() {
                     Toast.makeText(this, error.toString(), Toast.LENGTH_SHORT).show()
                 }
             ) {
+
+                // 🔹 Send POST parameters
                 override fun getParams(): MutableMap<String, String> {
                     val params = HashMap<String, String>()
                     params["email"] = em
                     params["password"] = pa
                     return params
                 }
+
             }
+
 
             Volley.newRequestQueue(this).add(request)
         }
