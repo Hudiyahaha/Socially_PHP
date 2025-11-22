@@ -25,13 +25,28 @@
             android:layout_height="wrap_content"
             android:textColor="@color/grey" />
 
-        <TextView
-            android:id="@+id/tvTime"
+        <!-- time + status row -->
+        <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textSize="10sp"
-            android:textColor="@android:color/darker_gray"
-            android:gravity="end"
-            android:paddingTop="4dp" />
+            android:orientation="horizontal"
+            android:gravity="end|center_vertical"
+            android:paddingTop="4dp">
+
+            <TextView
+                android:id="@+id/tvTime"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="10sp"
+                android:textColor="@android:color/darker_gray" />
+
+            <ImageView
+                android:id="@+id/statusIcon"
+                android:layout_width="14dp"
+                android:layout_height="14dp"
+                android:layout_marginStart="4dp"
+                android:contentDescription="@null"
+                android:visibility="visible" />
+        </LinearLayout>
     </LinearLayout>
 </LinearLayout>

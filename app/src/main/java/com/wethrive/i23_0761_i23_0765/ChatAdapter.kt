@@ -1,6 +1,5 @@
 package com.wethrive.i23_0761_i23_0765
 
-import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.Base64
@@ -16,223 +15,183 @@ import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.concurrent.thread
 
 class ChatAdapter(
     private val messages: MutableList<Message>,
     private val currentUserId: String,
-    private val onMessageLongPress: (Message) -> Unit = {}
+    private val onLongPress: (Message) -> Unit = {},
+    private val onRetryClick: (Message) -> Unit = {}
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
-    private companion object {
-        const val VIEW_TYPE_SENT = 1
-        const val VIEW_TYPE_RECEIVED = 2
+    companion object {
+        const val VIEW_SENT = 1
+        const val VIEW_RECEIVED = 2
     }
 
     override fun getItemViewType(position: Int): Int {
-        val m = messages[position]
-        return if (m.senderId == currentUserId) VIEW_TYPE_SENT else VIEW_TYPE_RECEIVED
+        return if (messages[position].senderId == currentUserId) VIEW_SENT else VIEW_RECEIVED
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
         val inflater = LayoutInflater.from(parent.context)
-        return if (viewType == VIEW_TYPE_SENT) {
-            val v = inflater.inflate(R.layout.item_message_sent, parent, false)
-            MessageViewHolder(v)
-        } else {
-            val v = inflater.inflate(R.layout.item_message_received, parent, false)
-            MessageViewHolder(v)
-        }
+        val layout = if (viewType == VIEW_SENT) R.layout.item_message_sent else R.layout.item_message_received
+        val v = inflater.inflate(layout, parent, false)
+        return MsgVH(v)
     }
 
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
-        val m = messages[position]
-        (holder as MessageViewHolder).bind(m)
+        (holder as MsgVH).bind(messages[position])
     }
 
     override fun getItemCount(): Int = messages.size
 
-    fun submitList(newItems: List<Message>) {
-        messages.clear()
-        messages.addAll(newItems)
-        notifyDataSetChanged()
+    fun addOrUpdateMessage(newMsg: Message) {
+        val idx = messages.indexOfFirst { it.messageId == newMsg.messageId }
+        if (idx >= 0) {
+            messages[idx] = newMsg
+            notifyItemChanged(idx)
+        } else {
+            messages.add(newMsg)
+            notifyItemInserted(messages.lastIndex)
+        }
     }
 
-    fun addMessage(message: Message) {
-        messages.add(message)
+    fun addMessage(msg: Message) {
+        messages.add(msg)
         notifyItemInserted(messages.lastIndex)
     }
 
-    private fun formatTime(ts: Long): String {
+    fun updateDeliveryState(messageId: String, state: Int) {
+        val idx = messages.indexOfFirst { it.messageId == messageId }
+        if (idx >= 0) {
+            messages[idx].deliveryState = state
+            messages[idx].isPending = state != 1
+            notifyItemChanged(idx)
+        }
+    }
+
+    private fun fmt(ts: Long): String {
         if (ts <= 0L) return ""
         val sdf = SimpleDateFormat("hh:mm a", Locale.getDefault())
         return sdf.format(Date(ts))
     }
 
-    private inner class MessageViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        private val tvMessage: TextView = itemView.findViewById(R.id.tvMessage)
-        private val tvTime: TextView = itemView.findViewById(R.id.tvTime)
-        private val imageMessage: ImageView = itemView.findViewById(R.id.imageMessage)
+    private inner class MsgVH(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        private val tvMessage: TextView? = itemView.findViewById(R.id.tvMessage)
+        private val tvTime: TextView? = itemView.findViewById(R.id.tvTime)
+        private val ivImage: ImageView? = itemView.findViewById(R.id.imageMessage)
+        private val ivStatus: ImageView? = itemView.findViewById(R.id.statusIcon)
 
         fun bind(m: Message) {
-            // Long-press support
-            val longPressListener = View.OnLongClickListener {
-                onMessageLongPress(m)
-                true
+            itemView.setOnLongClickListener {
+                onLongPress(m); true
             }
-            itemView.setOnLongClickListener(longPressListener)
-            tvMessage.setOnLongClickListener(longPressListener)
-            imageMessage.setOnLongClickListener(longPressListener)
 
-            // Deleted takes precedence over any content
             if (m.deleted) {
-                tvMessage.visibility = View.VISIBLE
-                tvMessage.text = "Message deleted"
-                tvMessage.isClickable = false
-                tvMessage.setOnClickListener(null)
-                imageMessage.visibility = View.GONE
-                imageMessage.setImageDrawable(null)
-                tvTime.text = formatTime(m.timestamp)
+                tvMessage?.visibility = View.VISIBLE
+                tvMessage?.setText(R.string.message_deleted)
+                ivImage?.visibility = View.GONE
+                tvTime?.text = fmt(m.timestamp)
+                ivStatus?.visibility = View.GONE
                 return
             }
 
-            // Shared post rendering
-            val sharedPost = m.postId?.takeIf { it.isNotBlank() }
-            if (sharedPost != null) {
-                tvMessage.visibility = View.VISIBLE
-                tvMessage.text = "View shared post"
-                tvMessage.isClickable = true
-                tvMessage.setOnClickListener {
-                    val parts = sharedPost.split(":", limit = 2)
-                    if (parts.size == 2) {
-                        val i = Intent(itemView.context, ViewPost::class.java)
-                        i.putExtra("uid", parts[0])
-                        i.putExtra("postId", parts[1])
-                        itemView.context.startActivity(i)
-                    }
-                }
-                imageMessage.visibility = View.GONE
-                imageMessage.setImageDrawable(null)
+            // Text
+            val txt = (m.text ?: "").trim()
+            if (txt.isNotEmpty()) {
+                tvMessage?.visibility = View.VISIBLE
+                tvMessage?.text = if (m.edited) "$txt (edited)" else txt
             } else {
-                // Text message
-                val baseText = (m.text ?: "").trim()
-                if (baseText.isNotEmpty()) {
-                    val editedMark = if (m.edited) " (edited)" else ""
-                    tvMessage.visibility = View.VISIBLE
-                    tvMessage.text = baseText + editedMark
-                    tvMessage.setOnClickListener(null)
-                    tvMessage.isClickable = false
-                } else {
-                    tvMessage.visibility = View.GONE
-                    tvMessage.text = ""
-                    tvMessage.setOnClickListener(null)
-                    tvMessage.isClickable = false
-                }
+                tvMessage?.visibility = View.GONE
+            }
 
-                // Image message
-                val url = m.imageUrl
-                val b64 = m.imageBase64
-                when {
-                    !url.isNullOrBlank() -> {
-                        imageMessage.visibility = View.VISIBLE
-                        imageMessage.contentDescription = "Image message"
-                        SimpleImageLoader.load(url, imageMessage)
-                    }
-                    !b64.isNullOrBlank() -> {
-                        imageMessage.visibility = View.VISIBLE
-                        imageMessage.contentDescription = "Image message"
-                        SimpleImageLoader.loadBase64(b64, imageMessage)
-                    }
-                    else -> {
-                        imageMessage.visibility = View.GONE
-                        imageMessage.setImageDrawable(null)
-                    }
+            // Image Base64 or URL
+            when {
+                !m.imageUrl.isNullOrBlank() -> {
+                    ivImage?.visibility = View.VISIBLE
+                    m.imageUrl?.let { url -> ivImage?.let { SimpleImageLoader.load(url, it) } }
+                }
+                !m.imageBase64.isNullOrBlank() -> {
+                    ivImage?.visibility = View.VISIBLE
+                    m.imageBase64?.let { b64 -> ivImage?.let { SimpleImageLoader.loadBase64(b64, it) } }
+                }
+                else -> {
+                    ivImage?.visibility = View.GONE
                 }
             }
 
-            // Time
-            tvTime.text = formatTime(m.timestamp)
+            // Status indicator: pending/sent/failed
+            ivStatus?.visibility = View.VISIBLE
+            when (m.deliveryState) {
+                0 -> { // queued/sending
+                    ivStatus?.setImageResource(R.drawable.ic_clock)
+                    ivStatus?.setOnClickListener(null)
+                }
+                1 -> { // sent
+                    ivStatus?.setImageResource(R.drawable.ic_tick)
+                    ivStatus?.setOnClickListener(null)
+                }
+                2 -> { // failed
+                    ivStatus?.setImageResource(R.drawable.ic_failed)
+                    ivStatus?.setOnClickListener {
+                        onRetryClick(m)
+                    }
+                }
+                else -> ivStatus?.visibility = View.GONE
+            }
+
+            // Time or "Sending..."
+            tvTime?.text = if (m.isPending) itemView.context.getString(R.string.sending_label) else fmt(m.timestamp)
         }
     }
 }
 
-// Minimal, no-dependency image loader with in-memory cache.
+/** minimal image loader with cache */
 private object SimpleImageLoader {
-    // Use ~1/8th of available memory for cache
-    private val cacheSize: Int = (Runtime.getRuntime().maxMemory() / 1024 / 8).toInt()
+    private val cacheSize = (Runtime.getRuntime().maxMemory() / 1024 / 8).toInt()
     private val cache = object : LruCache<String, Bitmap>(cacheSize) {
-        override fun sizeOf(key: String, value: Bitmap): Int {
-            return value.byteCount / 1024
-        }
+        override fun sizeOf(key: String, value: Bitmap) = value.byteCount / 1024
     }
 
-    fun load(url: String, imageView: ImageView) {
-        // Serve from cache if available
-        cache.get(url)?.let { bmp ->
-            imageView.setImageBitmap(bmp)
-            return
+    fun load(url: String, iv: ImageView) {
+        cache.get(url)?.let {
+            iv.setImageBitmap(it); return
         }
-
-        // Tag to avoid race when views are reused
-        imageView.tag = url
-        imageView.setImageDrawable(null)
-
-        Thread {
+        iv.tag = url
+        iv.setImageDrawable(null)
+        thread {
+            var conn: HttpURLConnection? = null
             try {
-                val bmp = downloadBitmap(url)
+                val u = URL(url)
+                conn = (u.openConnection() as HttpURLConnection).apply {
+                    doInput = true; connectTimeout = 8000; readTimeout = 8000
+                }
+                conn.connect()
+                val bmp = BitmapFactory.decodeStream(conn.inputStream)
                 if (bmp != null) {
                     cache.put(url, bmp)
-                    if (imageView.tag == url) {
-                        imageView.post { imageView.setImageBitmap(bmp) }
-                    }
+                    if (iv.tag == url) iv.post { iv.setImageBitmap(bmp) }
                 }
-            } catch (_: Exception) {
-                // ignore failures silently
-            }
-        }.start()
+            } catch (_: Exception) { }
+            finally { conn?.disconnect() }
+        }
     }
 
-    fun loadBase64(b64: String, imageView: ImageView) {
-        // Build a stable cache key without storing the entire string key
-        val key = "b64_" + b64.hashCode()
-        cache.get(key)?.let { bmp ->
-            imageView.setImageBitmap(bmp)
-            return
-        }
-
-        imageView.tag = key
-        imageView.setImageDrawable(null)
-
-        Thread {
+    fun loadBase64(b64: String, iv: ImageView) {
+        val key = "b64_${b64.hashCode()}"
+        cache.get(key)?.let { iv.setImageBitmap(it); return }
+        iv.tag = key
+        iv.setImageDrawable(null)
+        thread {
             try {
                 val bytes = Base64.decode(b64, Base64.DEFAULT)
                 val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                 if (bmp != null) {
                     cache.put(key, bmp)
-                    if (imageView.tag == key) {
-                        imageView.post { imageView.setImageBitmap(bmp) }
-                    }
+                    if (iv.tag == key) iv.post { iv.setImageBitmap(bmp) }
                 }
-            } catch (_: Exception) {
-                // ignore failures silently
-            }
-        }.start()
-    }
-
-    private fun downloadBitmap(urlStr: String): Bitmap? {
-        var conn: HttpURLConnection? = null
-        return try {
-            val url = URL(urlStr)
-            conn = (url.openConnection() as HttpURLConnection).apply {
-                doInput = true
-                connectTimeout = 8000
-                readTimeout = 8000
-            }
-            conn.connect()
-            conn.inputStream.use { input -> BitmapFactory.decodeStream(input) }
-        } catch (_: Exception) {
-            null
-        } finally {
-            conn?.disconnect()
+            } catch (_: Exception) { }
         }
     }
 }

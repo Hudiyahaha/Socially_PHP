@@ -190,8 +190,9 @@ class MainActivity5 : AppCompatActivity() {
         NotificationHelper.ensureChannel(this)
         NotificationHelper.maybeRequestPostNotifications(this)
         NotificationHelper.startFollowRequestListener(this)
-        NotificationHelper.startMessageListeners(this)
-        NotificationHelper.startScreenshotListeners(this)
+        // Messaging is now PHP-based; disable Firebase DB listeners to avoid crashes
+        // NotificationHelper.startMessageListeners(this)
+        // NotificationHelper.startScreenshotListeners(this)
     }
 
     fun uploadStory(uri: Uri, type: String) {
