@@ -583,12 +583,12 @@ class MainActivity9 : AppCompatActivity() {
 
                         if (incoming.isNotEmpty()) {
                             for (m in incoming) {
-                                // Mark message as seen if current user is receiver
-                                val seenMessage = if (m.receiverId == currentUserId) m.copy(seen = true) else m
-                                // Save to local database
-                                messagesDbHelper.insertOrUpdateMessage(seenMessage)
+                                // Don't mark as seen immediately - only mark when actually viewed
+                                // This prevents vanish mode messages from being deleted too quickly
+                                // Save to local database with original seen status from server
+                                messagesDbHelper.insertOrUpdateMessage(m)
                                 // Add to UI
-                                adapter.addOrUpdateMessage(seenMessage)
+                                adapter.addOrUpdateMessage(m)
                                 Log.d("MessagingActivity", ">>> Added message to UI: ${m.messageId} - ${m.text?.take(20)}")
                             }
 
@@ -597,10 +597,15 @@ class MainActivity9 : AppCompatActivity() {
                                 recycler.smoothScrollToPosition(messages.lastIndex)
                             }
 
-                            // mark seen on server too (only if we received new messages for us)
-                            val receivedForMe = incoming.any { it.receiverId == currentUserId }
+                            // Mark messages as seen on server only if:
+                            // 1. We received new messages for us
+                            // 2. The chat is currently visible (user is viewing it)
+                            val receivedForMe = incoming.any { it.receiverId == currentUserId && !it.seen }
                             if (receivedForMe) {
-                                markMessagesSeenOnServer()
+                                // Delay marking as seen to ensure user actually sees the message
+                                handler.postDelayed({
+                                    markMessagesSeenOnServer()
+                                }, 2000) // Wait 2 seconds before marking as seen
                             }
                         } else {
                             Log.d("MessagingActivity", ">>> No new messages to display")
@@ -666,6 +671,13 @@ class MainActivity9 : AppCompatActivity() {
 
             // If it's a local-only message that's still pending/sending, keep it
             if (it.messageId.startsWith("local_") && it.deliveryState == 0) return@filter false
+
+            // IMPORTANT: Don't delete messages sent by current user that are not on server
+            // They might be vanish mode messages that were deleted for receiver but should still show for sender
+            if (it.senderId == currentUserId) return@filter false
+
+            // Don't delete vanish mode messages that haven't been seen yet (they might still be visible)
+            if (it.vanishMode && !it.seen) return@filter false
 
             // Otherwise, if it's not on the server, mark for deletion
             !serverMessageIds.contains(it.messageId)
@@ -798,37 +810,36 @@ class MainActivity9 : AppCompatActivity() {
     private fun loadMessagesFromDb() {
         val localMessages = messagesDbHelper.getMessagesForChat(chatId)
 
-        // Batch: collect messages that need to be marked as seen
-        val messagesToMarkSeen = mutableListOf<Message>()
-
+        // Load messages without marking as seen immediately
+        // This prevents vanish mode messages from being deleted before user views them
         for (m in localMessages) {
-            // Mark messages as seen if current user is the receiver
-            if (m.receiverId == currentUserId && !m.seen) {
-                val seenMessage = m.copy(seen = true)
-                messagesToMarkSeen.add(seenMessage)
-                adapter.addOrUpdateMessage(seenMessage)
-            } else {
-                adapter.addOrUpdateMessage(m)
-            }
-        }
-
-        // Batch update: mark all messages as seen in one go (off main thread)
-        if (messagesToMarkSeen.isNotEmpty()) {
-            Thread {
-                for (msg in messagesToMarkSeen) {
-                    messagesDbHelper.insertOrUpdateMessage(msg)
-                }
-                Log.d("MessagingActivity", "Marked ${messagesToMarkSeen.size} messages as seen in DB")
-            }.start()
+            adapter.addOrUpdateMessage(m)
         }
 
         if (localMessages.isNotEmpty()) {
             recycler.scrollToPosition(messages.lastIndex)
         }
 
-        // Mark messages as seen on server (only if there are unseen messages)
-        if (messagesToMarkSeen.isNotEmpty()) {
-            markMessagesSeenOnServer()
+        // Mark messages as seen after a delay to ensure user actually views them
+        // Only mark non-vanish mode messages (vanish mode messages should only be marked when user actually views them)
+        val unseenMessages = localMessages.filter { 
+            it.receiverId == currentUserId && !it.seen && !it.vanishMode
+        }
+        if (unseenMessages.isNotEmpty()) {
+            handler.postDelayed({
+                // Mark as seen in local DB
+                Thread {
+                    for (msg in unseenMessages) {
+                        val seenMessage = msg.copy(seen = true)
+                        messagesDbHelper.insertOrUpdateMessage(seenMessage)
+                        runOnUiThread {
+                            adapter.addOrUpdateMessage(seenMessage)
+                        }
+                    }
+                }.start()
+                // Mark as seen on server
+                markMessagesSeenOnServer()
+            }, 2000) // Wait 2 seconds before marking as seen
         }
     }
 
