@@ -59,7 +59,7 @@ class profile : AppCompatActivity() {
         val current= getSharedPreferences("user_session", MODE_PRIVATE).getString("userId", "") ?: ""
 
         // Receive the targetId from the intent
-        targetId = intent.getStringExtra("id")
+        targetId = intent.getStringExtra("userId")
         val target = targetId ?: return
 
         val requestsRef = FirebaseDatabase.getInstance().getReference("Requests")
@@ -134,47 +134,47 @@ class profile : AppCompatActivity() {
         detectState()
 
         // YAHAN PY DATABASE SY UTH K NUMBER OF POSTS AUR FOLLOWERS AUR FOLLOWING AARHY HAIN
-        var ref=FirebaseDatabase.getInstance().getReference("Followers").child(targetId!!)
-
-        ref.addListenerForSingleValueEvent(object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                val count = snapshot.childrenCount
-                followers.text = count.toString()
-            }
-
-            override fun onCancelled(error: DatabaseError) {
-                // Handle error if needed
-                followers.text="-1"
-            }
-        })
-
-        ref=FirebaseDatabase.getInstance().getReference("Following").child(targetId!!)
-
-        ref.addListenerForSingleValueEvent(object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                val count = snapshot.childrenCount
-                following.text = count.toString()
-            }
-
-            override fun onCancelled(error: DatabaseError) {
-                // Handle error if needed
-                following.text="-1"
-            }
-        })
-
-        ref=FirebaseDatabase.getInstance().getReference("Posts").child(targetId!!)
-
-        ref.addListenerForSingleValueEvent(object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                val count = snapshot.childrenCount
-                posts.text = count.toString()
-            }
-
-            override fun onCancelled(error: DatabaseError) {
-                // Handle error if needed
-                posts.text="-1"
-            }
-        })
+//        var ref=FirebaseDatabase.getInstance().getReference("Followers").child(targetId!!)
+//
+//        ref.addListenerForSingleValueEvent(object : ValueEventListener {
+//            override fun onDataChange(snapshot: DataSnapshot) {
+//                val count = snapshot.childrenCount
+//                followers.text = count.toString()
+//            }
+//
+//            override fun onCancelled(error: DatabaseError) {
+//                // Handle error if needed
+//                followers.text="-1"
+//            }
+//        })
+//
+//        ref=FirebaseDatabase.getInstance().getReference("Following").child(targetId!!)
+//
+//        ref.addListenerForSingleValueEvent(object : ValueEventListener {
+//            override fun onDataChange(snapshot: DataSnapshot) {
+//                val count = snapshot.childrenCount
+//                following.text = count.toString()
+//            }
+//
+//            override fun onCancelled(error: DatabaseError) {
+//                // Handle error if needed
+//                following.text="-1"
+//            }
+//        })
+//
+//        ref=FirebaseDatabase.getInstance().getReference("Posts").child(targetId!!)
+//
+//        ref.addListenerForSingleValueEvent(object : ValueEventListener {
+//            override fun onDataChange(snapshot: DataSnapshot) {
+//                val count = snapshot.childrenCount
+//                posts.text = count.toString()
+//            }
+//
+//            override fun onCancelled(error: DatabaseError) {
+//                // Handle error if needed
+//                posts.text="-1"
+//            }
+//        })
 //----------------------------------------------------------------------------separator
 
         if (targetId.isNullOrEmpty()) {
@@ -265,15 +265,8 @@ class profile : AppCompatActivity() {
         val databaseref= FirebaseDatabase.getInstance().getReference("Users").child(target)
         val currentref= FirebaseDatabase.getInstance().getReference("Users").child(current)
 
-        if(target!= null)
-        {
-            databaseref.child("bio").get().addOnSuccessListener {
-                if(it.exists())
-                {
-                    val biography= it.getValue(String::class.java)
-                    bio.text=biography
-                }
-            }
+
+        bio.text="Hey there! I am using Socially." // Jugaar pro max ;)
 
             databaseref.child("uname").get().addOnSuccessListener {
                 if(it.exists())

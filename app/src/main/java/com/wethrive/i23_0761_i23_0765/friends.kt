@@ -65,9 +65,12 @@ class friends : AppCompatActivity() {
     }
 
     private fun fetchFriends() {
+
         val prefs = getSharedPreferences("user_session", MODE_PRIVATE)
         val userId = prefs.getString("userId", "") ?: ""
+
         val url = "http://sociallyah.atwebpages.com/get_friends.php"
+
         val queue = Volley.newRequestQueue(this)
         val request = object : StringRequest(Method.POST, url,
             { response -> parseFriendsResponse(response) },

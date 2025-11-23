@@ -58,7 +58,7 @@ class FriendsAdapter(
         // Click -> open profile
         holder.itemView.setOnClickListener {
             val i = Intent(holder.itemView.context, profile::class.java)
-            i.putExtra("id", user.id)
+            i.putExtra("userId", user.id)
             holder.itemView.context.startActivity(i)
         }
 
