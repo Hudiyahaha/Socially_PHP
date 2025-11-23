@@ -48,7 +48,7 @@ class FeedPostAdapter(private val postList: MutableList<Post>) :
         holder.postImagesRecycler.layoutManager =
             LinearLayoutManager(ctx, LinearLayoutManager.HORIZONTAL, false)
         holder.postImagesRecycler.adapter =
-            PostMediaAdapter(post.mediaBase64List, post.mediaTypeList)
+            PostMediaAdapter(post.mediaUrlList, post.mediaTypeList)
 
         // --- USERNAME ---
         holder.username.text = post.username ?: "Unknown"

@@ -5,7 +5,7 @@ import com.google.firebase.database.Exclude
 data class Post(
     val postId: String = "",
     val userId: String = "",
-    val mediaBase64List: List<String> = emptyList(),
+    val mediaUrlList: List<String> = emptyList(),
     val mediaTypeList: List<String> = emptyList(),
     val timestamp: Long = 0L,
     val username: String? = null,           // Username of poster

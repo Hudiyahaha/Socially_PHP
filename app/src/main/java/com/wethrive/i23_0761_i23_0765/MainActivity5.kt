@@ -293,7 +293,7 @@ class MainActivity5 : AppCompatActivity() {
     }
 
     fun fetchPosts() {
-        val url = "http://sociallyah.atwebpages.com/get_feedpost.php" // new endpoint
+        val url = "http://sociallyah.atwebpages.com/get_feedpost.php"
         val queue = Volley.newRequestQueue(this)
 
         val request = object : StringRequest(
@@ -310,21 +310,20 @@ class MainActivity5 : AppCompatActivity() {
 
                     for (i in 0 until jsonArray.length()) {
                         val obj = jsonArray.getJSONObject(i)
-                        val mediaBase64 = obj.getString("media")
+                        val mediaUrl = obj.getString("media")      // URL from i.php
                         val mediaType = obj.getString("media_type")
-
-                        if (mediaBase64.isEmpty()) continue
+                        val dpUrl = obj.optString("dp", "")        // URL from i.php
 
                         postList.add(
                             Post(
                                 postId = obj.getString("post_id"),
                                 userId = obj.getString("user_id"),
-                                mediaBase64List = mutableListOf(mediaBase64),
-                                mediaTypeList = mutableListOf(mediaType),
+                                mediaUrlList = listOf(mediaUrl),      // URL list
+                                mediaTypeList = listOf(mediaType),
                                 timestamp = obj.getLong("timestamp"),
                                 username = obj.optString("username", ""),
-                                caption = "", // no caption in current PHP
-                                userProfileBase64 = obj.optString("dp", ""),
+                                caption = "",                         // add if available later
+                                userProfileBase64 = dpUrl,            // URL now
                                 likes = mutableListOf()
                             )
                         )
@@ -344,6 +343,7 @@ class MainActivity5 : AppCompatActivity() {
 
         queue.add(request)
     }
+
 
 
 

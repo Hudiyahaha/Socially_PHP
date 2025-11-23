@@ -61,23 +61,27 @@ class ViewPost : AppCompatActivity() {
         val queue = Volley.newRequestQueue(this)
 
         val request = object : StringRequest(
-            Request.Method.POST, url, // POST instead of GET
+            Request.Method.POST, url,
             StringRequest@{ response ->
                 try {
-                    val jsonArray = JSONArray(response)
+                    val jsonObj = JSONObject(response)
+                    val postsArray = jsonObj.getJSONArray("posts")
                     var postObj: JSONObject? = null
-                    for (i in 0 until jsonArray.length()) {
-                        val obj = jsonArray.getJSONObject(i)
+
+                    for (i in 0 until postsArray.length()) {
+                        val obj = postsArray.getJSONObject(i)
                         if (obj.getString("post_id") == postId) {
                             postObj = obj
                             break
                         }
                     }
+
                     if (postObj == null) {
                         Toast.makeText(this, "Post not found", Toast.LENGTH_SHORT).show()
                         finish()
                         return@StringRequest
                     }
+
                     displayPost(postObj)
                 } catch (e: Exception) {
                     e.printStackTrace()
@@ -97,27 +101,28 @@ class ViewPost : AppCompatActivity() {
             }
         }
         queue.add(request)
-
     }
 
+
     private fun displayPost(postObj: JSONObject) {
-        val mediaBase64List = mutableListOf<String>()
+        val mediaUrlList = mutableListOf<String>()
         val mediaTypeList = mutableListOf<String>()
 
         try {
-            val mediaBase64 = postObj.getString("media") // Base64 string from server
+            val mediaPath = postObj.getString("file_path")  // server file path
             val mediaType = postObj.getString("media_type")
-            mediaBase64List.add(mediaBase64)
+            val mediaUrl = "http://sociallyah.atwebpages.com/i.php?p=$mediaPath"
+
+            mediaUrlList.add(mediaUrl)
             mediaTypeList.add(mediaType)
 
-            recyclerView.adapter = PostMediaAdapter(mediaBase64List, mediaTypeList)
-
+            recyclerView.adapter = PostMediaAdapter(mediaUrlList, mediaTypeList)
         } catch (e: Exception) {
             e.printStackTrace()
             Toast.makeText(this, "Error loading media", Toast.LENGTH_SHORT).show()
         }
 
-        // Username & profile
+        // Username & profile (still Base64)
         val usernameText = findViewById<TextView>(R.id.username)
         val profileImage = findViewById<CircleImageView>(R.id.profile)
         usernameText.text = postObj.optString("username", "Unknown")
@@ -142,7 +147,7 @@ class ViewPost : AppCompatActivity() {
             // handle like API call if needed
         }
 
-        // Comments (can use existing CommentAdapter)
+        // Comments
         val commentsRecycler = findViewById<RecyclerView>(R.id.commentsRecycler)
         val commentsList = mutableListOf<Comment>()
         val commentAdapter = CommentAdapter(commentsList)
@@ -157,6 +162,7 @@ class ViewPost : AppCompatActivity() {
             }
         }
     }
+
 
     private fun updateLikeUI() {
         val likeCount = likes.size
