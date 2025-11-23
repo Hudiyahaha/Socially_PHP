@@ -58,10 +58,9 @@ class FriendsAdapter(
         // Click -> open profile
         holder.itemView.setOnClickListener {
             val i = Intent(holder.itemView.context, profile::class.java)
-            i.putExtra("id", user.id)
+            i.putExtra("userId", user.id)
             holder.itemView.context.startActivity(i)
         }
-
 
         val userRef = FirebaseDatabase.getInstance().getReference("Users").child(user.id!!)
         userRef.child("status").addValueEventListener(object : ValueEventListener {

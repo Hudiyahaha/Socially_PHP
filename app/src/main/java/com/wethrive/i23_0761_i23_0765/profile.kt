@@ -9,11 +9,8 @@ import androidx.appcompat.app.AppCompatActivity
 import com.google.firebase.database.FirebaseDatabase
 import de.hdodenhof.circleimageview.CircleImageView
 
-
 import android.graphics.BitmapFactory
-import androidx.collection.emptyLongSet
 import com.google.android.material.button.MaterialButton
-import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.ValueEventListener
@@ -25,6 +22,12 @@ import android.graphics.Color
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+
+import com.android.volley.Request
+import com.android.volley.toolbox.StringRequest
+import com.android.volley.toolbox.Volley
+import org.json.JSONObject
+import java.io.ByteArrayOutputStream
 
 class profile : AppCompatActivity() {
     private var targetId: String? = null
@@ -56,18 +59,11 @@ class profile : AppCompatActivity() {
         val followers= findViewById<TextView>(R.id.followers)
         val following= findViewById<TextView>(R.id.following)
 
-        val current= FirebaseAuth.getInstance().currentUser!!.uid
-        current.toString()
-
-        val databaseref= FirebaseDatabase.getInstance().getReference("Requests")
-
-        // Receive the targetId from the intent
-        targetId = intent.getStringExtra("id")
+        val current= getSharedPreferences("user_session", MODE_PRIVATE).getString("userId", "") ?: ""
+        targetId = intent.getStringExtra("userId")
         val target = targetId ?: return
 
-        val requestsRef = FirebaseDatabase.getInstance().getReference("Requests")
-        val followingRef = FirebaseDatabase.getInstance().getReference("Following")
-        val followersRef = FirebaseDatabase.getInstance().getReference("Followers")
+        val BASE_URL = "http://sociallyah.atwebpages.com/"
 
         fun updateButtonState(state: String) {
             when (state) {
@@ -91,45 +87,146 @@ class profile : AppCompatActivity() {
 
         // --- STEP 1: Detect current relationship state ---
         fun detectState() {
-            followingRef.child(current).child(target).get().addOnSuccessListener { followingSnap ->
-                if (followingSnap.exists()) {
-                    updateButtonState("Following")
-                } else {
-                    requestsRef.child(target).child(current).get().addOnSuccessListener { requestSnap ->
-                        if (requestSnap.exists()) {
-                            updateButtonState("Requested")
-                        } else {
-                            updateButtonState("Follow")
+            val url = BASE_URL + "detect_follow_state.php"
+
+            val req = object : StringRequest(Method.POST, url,
+                { response ->
+                    try {
+                        val json = JSONObject(response)
+
+                        if (json.getInt("status") == 1) {
+                            val state = json.getString("state")
+                            updateButtonState(state)   // SAME function you already have
                         }
+
+                    } catch (e: Exception) {
+                        e.printStackTrace()
                     }
+                },
+                { error ->
+                    Toast.makeText(this, "Network error", Toast.LENGTH_SHORT).show()
+                }
+            ) {
+                override fun getParams(): MutableMap<String, String> {
+                    return hashMapOf(
+                        "follower_id" to current,
+                        "following_id" to targetId!!
+                    )
                 }
             }
+
+            Volley.newRequestQueue(this).add(req)
+        }
+
+        fun sendFollowRequest() {
+            val url = BASE_URL + "send_follow_request.php"
+
+            val req = object : StringRequest(Method.POST, url,
+                { response ->
+                    try {
+                        val json = JSONObject(response)
+                        if (json.getInt("status") == 1) {
+                            Toast.makeText(this, "Follow request sent!", Toast.LENGTH_SHORT).show()
+                            updateButtonState("Requested")
+                        } else {
+                            Toast.makeText(this, json.getString("message"), Toast.LENGTH_SHORT).show()
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                },
+                { error ->
+                    Toast.makeText(this, "Network error", Toast.LENGTH_SHORT).show()
+                }
+            ) {
+                override fun getParams(): MutableMap<String, String> {
+                    return hashMapOf(
+                        "follower_id" to current,
+                        "following_id" to targetId!!
+                    )
+                }
+            }
+
+            Volley.newRequestQueue(this).add(req)
+        }
+
+        fun cancelFollowRequest() {
+            val url = BASE_URL + "cancel_follow_request.php"
+
+            val req = object : StringRequest(Method.POST, url,
+                { response ->
+                    try {
+                        val json = JSONObject(response)
+                        if (json.getInt("status") == 1) {
+                            Toast.makeText(this, "Follow request canceled", Toast.LENGTH_SHORT).show()
+                            updateButtonState("Follow")
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                },
+                { error ->
+                    Toast.makeText(this, "Network error", Toast.LENGTH_SHORT).show()
+                }
+            ) {
+                override fun getParams(): MutableMap<String, String> {
+                    return hashMapOf(
+                        "follower_id" to current,
+                        "following_id" to targetId!!
+                    )
+                }
+            }
+
+            Volley.newRequestQueue(this).add(req)
+        }
+
+        fun unfollowUser() {
+            val url = BASE_URL + "unfollow.php"
+
+            val req = object : StringRequest(Method.POST, url,
+                { response ->
+                    try {
+                        val json = JSONObject(response)
+                        if (json.getInt("status") == 1) {
+                            Toast.makeText(this, "Unfollowed", Toast.LENGTH_SHORT).show()
+                            updateButtonState("Follow")
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                },
+                { error ->
+                    Toast.makeText(this, "Network error", Toast.LENGTH_SHORT).show()
+                }
+            ) {
+                override fun getParams(): MutableMap<String, String> {
+                    return hashMapOf(
+                        "follower_id" to current,
+                        "following_id" to targetId!!
+                    )
+                }
+            }
+
+            Volley.newRequestQueue(this).add(req)
         }
 
 // --- STEP 2: Handle button clicks ---
         follow.setOnClickListener {
             when (follow.text.toString()) {
                 "Follow" -> {
-                    requestsRef.child(target).child(current).setValue("pending").addOnSuccessListener {
+                    sendFollowRequest()
                         Toast.makeText(this, "Follow request sent!", Toast.LENGTH_SHORT).show()
-                        updateButtonState("Requested")
-                    }
                 }
 
                 "Requested" -> {
-                    requestsRef.child(target).child(current).removeValue().addOnSuccessListener {
+                    cancelFollowRequest()
                         Toast.makeText(this, "Follow request canceled", Toast.LENGTH_SHORT).show()
-                        updateButtonState("Follow")
-                    }
                 }
 
                 "Following" -> {
                     // Remove from Followers and Following
-                    followingRef.child(current).child(target).removeValue()
-                    followersRef.child(target).child(current).removeValue().addOnSuccessListener {
+                    unfollowUser()
                         Toast.makeText(this, "Unfollowed", Toast.LENGTH_SHORT).show()
-                        updateButtonState("Follow")
-                    }
                 }
             }
         }
@@ -137,47 +234,47 @@ class profile : AppCompatActivity() {
         detectState()
 
         // YAHAN PY DATABASE SY UTH K NUMBER OF POSTS AUR FOLLOWERS AUR FOLLOWING AARHY HAIN
-        var ref=FirebaseDatabase.getInstance().getReference("Followers").child(targetId!!)
-
-        ref.addListenerForSingleValueEvent(object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                val count = snapshot.childrenCount
-                followers.text = count.toString()
-            }
-
-            override fun onCancelled(error: DatabaseError) {
-                // Handle error if needed
-                followers.text="-1"
-            }
-        })
-
-        ref=FirebaseDatabase.getInstance().getReference("Following").child(targetId!!)
-
-        ref.addListenerForSingleValueEvent(object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                val count = snapshot.childrenCount
-                following.text = count.toString()
-            }
-
-            override fun onCancelled(error: DatabaseError) {
-                // Handle error if needed
-                following.text="-1"
-            }
-        })
-
-        ref=FirebaseDatabase.getInstance().getReference("Posts").child(targetId!!)
-
-        ref.addListenerForSingleValueEvent(object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                val count = snapshot.childrenCount
-                posts.text = count.toString()
-            }
-
-            override fun onCancelled(error: DatabaseError) {
-                // Handle error if needed
-                posts.text="-1"
-            }
-        })
+//        var ref=FirebaseDatabase.getInstance().getReference("Followers").child(targetId!!)
+//
+//        ref.addListenerForSingleValueEvent(object : ValueEventListener {
+//            override fun onDataChange(snapshot: DataSnapshot) {
+//                val count = snapshot.childrenCount
+//                followers.text = count.toString()
+//            }
+//
+//            override fun onCancelled(error: DatabaseError) {
+//                // Handle error if needed
+//                followers.text="-1"
+//            }
+//        })
+//
+//        ref=FirebaseDatabase.getInstance().getReference("Following").child(targetId!!)
+//
+//        ref.addListenerForSingleValueEvent(object : ValueEventListener {
+//            override fun onDataChange(snapshot: DataSnapshot) {
+//                val count = snapshot.childrenCount
+//                following.text = count.toString()
+//            }
+//
+//            override fun onCancelled(error: DatabaseError) {
+//                // Handle error if needed
+//                following.text="-1"
+//            }
+//        })
+//
+//        ref=FirebaseDatabase.getInstance().getReference("Posts").child(targetId!!)
+//
+//        ref.addListenerForSingleValueEvent(object : ValueEventListener {
+//            override fun onDataChange(snapshot: DataSnapshot) {
+//                val count = snapshot.childrenCount
+//                posts.text = count.toString()
+//            }
+//
+//            override fun onCancelled(error: DatabaseError) {
+//                // Handle error if needed
+//                posts.text="-1"
+//            }
+//        })
 //----------------------------------------------------------------------------separator
 
         if (targetId.isNullOrEmpty()) {
@@ -265,55 +362,64 @@ class profile : AppCompatActivity() {
     private fun loadUserProfile(target: String, current: String) {
         Toast.makeText(this, "Loading profile for user: $target", Toast.LENGTH_SHORT).show()
 
-        val databaseref= FirebaseDatabase.getInstance().getReference("Users").child(target)
-        val currentref= FirebaseDatabase.getInstance().getReference("Users").child(current)
+        val request = object : StringRequest(
+            Request.Method.POST,
+            "http://sociallyah.atwebpages.com/get_dp.php",
+            { response ->
+                try {
+                    val json = JSONObject(response)
 
-        if(target!= null)
-        {
-            databaseref.child("bio").get().addOnSuccessListener {
-                if(it.exists())
-                {
-                    val biography= it.getValue(String::class.java)
-                    bio.text=biography
-                }
-            }
+                    if (json.getInt("status") == 1) {
+                        val username = json.getString("username")
+                        uname.text = username
+                        name.text = username
+                        val biography = json.getString("bio")
+                        bio.text = biography
 
-            databaseref.child("uname").get().addOnSuccessListener {
-                if(it.exists())
-                {
-                    val username= it.getValue(String::class.java)
-                    uname.text=username
-                    name.text=username
+                        val profile = json.getString("dp")
+                        if (!profile.isNullOrBlank()) {
 
-                }
-            }
+                            val imageBytes = Base64.decode(profile, Base64.DEFAULT)
+                            val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+                            dp.setImageBitmap(bitmap)
+                        }
 
-            databaseref.child("dp").get().addOnSuccessListener {
-                if(it.exists())
-                {
-                    val profile= it.getValue(String::class.java)
-                    // Attempt to decode base64 avatar if present
-                    if (!profile.isNullOrBlank()) {
-
-                        val imageBytes = Base64.decode(profile, Base64.DEFAULT)
-                        val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
-                        dp.setImageBitmap(bitmap)
+                    } else {
+                        Toast.makeText(this, json.getString("message"), Toast.LENGTH_LONG).show()
                     }
+
+                } catch (e: Exception) {
+                    Toast.makeText(this, "Invalid server response", Toast.LENGTH_LONG).show()
                 }
+            },
+            { error ->
+                Toast.makeText(this, error.toString(), Toast.LENGTH_LONG).show()
             }
+        ) {
+            override fun getParams(): Map<String, String> {
+                val params = hashMapOf<String, String>()
+                params["userId"] = target
+                return params
 
-            currentref.child("dp").get().addOnSuccessListener {
-                if(it.exists())
-                {
-                    val profile= it.getValue(String::class.java)
-                    // Attempt to decode base64 avatar if present
-                    if (!profile.isNullOrBlank()) {
+            }
+        }
 
-                        val imageBytes = Base64.decode(profile, Base64.DEFAULT)
-                        val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
-                        profile_bottom.setImageBitmap(bitmap)
-                    }
+        Volley.newRequestQueue(this).add(request)
+
+        // Load profile picture from SharedPreferences
+        val sharedPrefs = getSharedPreferences("user_session", Context.MODE_PRIVATE)
+        val base64String = sharedPrefs.getString("dp", null)
+
+        if (!base64String.isNullOrEmpty()) {
+            try {
+                val bytes = Base64.decode(base64String, Base64.DEFAULT)
+                val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                if (bitmap != null) {
+                    profile_bottom.setImageBitmap(bitmap)
                 }
+            } catch (e: Exception) {
+                // Handle decoding error
+                profile_bottom.setImageResource(R.drawable.me)
             }
         }
     }
