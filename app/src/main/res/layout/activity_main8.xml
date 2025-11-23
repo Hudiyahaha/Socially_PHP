@@ -24,39 +24,31 @@
         android:weightSum="2"
     >
 
-        <LinearLayout
+        <RelativeLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="2"
             android:orientation="horizontal"
-            android:weightSum="8"
             android:gravity="center"
             android:layout_marginTop="10dp"
+            android:layout_marginHorizontal="20dp"
             >
 
             <ImageView
-                android:layout_width="0dp"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
                 android:src="@drawable/chevronleft_colored"
                 android:layout_gravity="left|center"
                 android:id="@+id/exit_dm"
+                android:layout_alignParentLeft="true"
                 />
 
-            <View
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="2"
-                />
+<!--            <View-->
+<!--                android:layout_width="0dp"-->
+<!--                android:layout_height="wrap_content"-->
+<!--                android:layout_weight="2.5"-->
+<!--                />-->
 
-<LinearLayout
-    android:layout_width="0dp"
-    android:layout_height="match_parent"
-    android:orientation="horizontal"
-    android:layout_weight="2"
-    android:gravity="center"
-    android:weightSum="12"
-    >
             <TextView
                 android:id="@+id/username"
                 android:layout_width="wrap_content"
@@ -65,31 +57,26 @@
                 android:textSize="17sp"
                 android:layout_gravity="center"
                 android:textColor="@color/button"
-
+                android:layout_centerInParent="true"
                 />
 
-<!--    <ImageView-->
-<!--        android:layout_width="wrap_content"-->
-<!--        android:layout_height="match_parent"-->
-<!--        android:src="@drawable/chevrondown"-->
-<!--        />-->
 
-</LinearLayout>
-            <View
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="2"
-                />
+
+<!--            <View-->
+<!--                android:layout_width="0dp"-->
+<!--                android:layout_height="wrap_content"-->
+<!--                android:layout_weight="2.5"-->
+<!--                />-->
 
             <ImageView
                 android:id="@+id/plus"
-                android:layout_width="0dp"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
                 android:src="@drawable/plus"
+                android:layout_alignParentEnd="true"
                 />
 
-        </LinearLayout>
+        </RelativeLayout>
 
         <!--SEARCH BAR-->
         <LinearLayout

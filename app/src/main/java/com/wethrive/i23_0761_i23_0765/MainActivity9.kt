@@ -55,18 +55,14 @@ class MainActivity9 : AppCompatActivity() {
     private lateinit var profileName: TextView
     private lateinit var profileIcon: CircleImageView
     private lateinit var backArrow: ImageView
-
-    private lateinit var dbRef: DatabaseReference
+//    private lateinit var dbRef: DatabaseReference
     private lateinit var adapter: ChatAdapter
-
     private lateinit var audio: ImageView
     private lateinit var video: ImageView
     private val messageList = mutableListOf<Message>()
-
     private val currentUserId = FirebaseAuth.getInstance().currentUser!!.uid
-    private lateinit var otherUserId: String
+    private lateinit var receiverId: String
     private lateinit var chatId: String
-
     private val IMAGE_REQUEST_CODE = 101
 
     // Call status UI
@@ -117,6 +113,7 @@ class MainActivity9 : AppCompatActivity() {
                 Toast.makeText(this@MainActivity9, "$callType call started", Toast.LENGTH_SHORT).show()
             }
         }
+
         override fun onUserJoined(uid: Int, elapsed: Int) {
             Log.d("MainActivity9", "Remote user joined: $uid")
             runOnUiThread {
@@ -170,7 +167,7 @@ class MainActivity9 : AppCompatActivity() {
     }
 
     // Call invite signaling (Firebase)
-    private lateinit var callsRef: DatabaseReference
+//             private lateinit var callsRef: DatabaseReference
     private var callInviteListener: ValueEventListener? = null
     private var incomingDialog: AlertDialog? = null
     private var suppressInviteOnJoin: Boolean = false
@@ -193,11 +190,11 @@ class MainActivity9 : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main9)
 
-        otherUserId = intent.getStringExtra("receiverId")!!
-        chatId = if (currentUserId < otherUserId)
-            currentUserId + "_" + otherUserId
+        receiverId = intent.getStringExtra("receiverId")!!
+        chatId = if (currentUserId < receiverId)
+            currentUserId + "_" + receiverId
         else
-            otherUserId + "_" + currentUserId
+            receiverId + "_" + currentUserId
 
         // Let notification helper know which chat is active to suppress duplicate notifications
         NotificationHelper.setActiveChatId(chatId)
@@ -207,13 +204,14 @@ class MainActivity9 : AppCompatActivity() {
         sharePostId = intent.getStringExtra("sharePostId")
 
         // Explicitly target the default Realtime Database for this Firebase project
-        val dbUrl = "https://i-0761-23i-0765-default-rtdb.firebaseio.com"
-        dbRef = FirebaseDatabase.getInstance(dbUrl).getReference("Messages").child(chatId)
-        callsRef = FirebaseDatabase.getInstance(dbUrl).getReference("Calls").child(chatId)
+//        val dbUrl = "https://i-0761-23i-0765-default-rtdb.firebaseio.com"
 
-        try {
-            Log.d("MainActivity9", "Realtime DB url: $dbUrl, root: ${dbRef.root}")
-        } catch (_: Exception) { }
+//        dbRef = FirebaseDatabase.getInstance(dbUrl).getReference("Messages").child(chatId)
+//        callsRef = FirebaseDatabase.getInstance(dbUrl).getReference("Calls").child(chatId)
+//
+//        try {
+//            Log.d("MainActivity9", "Realtime DB url: $dbUrl, root: ${dbRef.root}")
+//        } catch (_: Exception) { }
 
         recyclerChat = findViewById(R.id.recyclerChat)
         etMessage = findViewById(R.id.etMessage)
@@ -240,6 +238,7 @@ class MainActivity9 : AppCompatActivity() {
         adapter = ChatAdapter(messageList, currentUserId) { message ->
             handleMessageLongPress(message)
         }
+
         recyclerChat.layoutManager = LinearLayoutManager(this)
         recyclerChat.adapter = adapter
 
@@ -369,7 +368,7 @@ class MainActivity9 : AppCompatActivity() {
         val invite = mapOf(
             "channel" to chatId,
             "callerId" to currentUserId,
-            "calleeId" to otherUserId,
+            "calleeId" to receiverId,
             "callType" to callType,
             "status" to "ringing",
             "timestamp" to System.currentTimeMillis()
@@ -380,7 +379,7 @@ class MainActivity9 : AppCompatActivity() {
 
     // ========================= Message loading/sending =========================
     private fun loadReceiverProfile() {
-        val userRef = FirebaseDatabase.getInstance().getReference("Users").child(otherUserId)
+        val userRef = FirebaseDatabase.getInstance().getReference("Users").child(receiverId)
         userRef.addValueEventListener(object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val uname = snapshot.child("uname").getValue(String::class.java)
@@ -439,7 +438,7 @@ class MainActivity9 : AppCompatActivity() {
         val message = Message(
             messageId = messageId,
             senderId = currentUserId,
-            receiverId = otherUserId,
+            receiverId = receiverId,
             text = text,
             timestamp = System.currentTimeMillis()
         )
@@ -494,7 +493,7 @@ class MainActivity9 : AppCompatActivity() {
         val message = Message(
             messageId = messageId,
             senderId = currentUserId,
-            receiverId = otherUserId,
+            receiverId = receiverId,
             imageBase64 = base64,
             timestamp = System.currentTimeMillis()
         )
@@ -1065,7 +1064,7 @@ class MainActivity9 : AppCompatActivity() {
             val message = Message(
                 messageId = messageId,
                 senderId = currentUserId,
-                receiverId = otherUserId,
+                receiverId = receiverId,
                 text = "Shared a post",
                 postId = "${owner}:${pid}",
                 timestamp = System.currentTimeMillis()
@@ -1234,7 +1233,7 @@ class MainActivity9 : AppCompatActivity() {
         try {
             val map = hashMapOf(
                 "by" to currentUserId,
-                "to" to otherUserId,
+                "to" to receiverId,
                 "timestamp" to System.currentTimeMillis()
             )
             FirebaseDatabase.getInstance().getReference("Screenshots").child(chatId).push().setValue(map)
