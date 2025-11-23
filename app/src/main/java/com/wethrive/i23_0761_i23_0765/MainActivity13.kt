@@ -149,7 +149,7 @@ class MainActivity13 : AppCompatActivity() {
         val url = "http://sociallyah.atwebpages.com/get_post.php"
         val queue = Volley.newRequestQueue(this)
 
-        val postList = mutableListOf<String>()     // Base64 strings
+        val postList = mutableListOf<String>()     // media URLs
         val postIds = mutableListOf<String>()      // post IDs
         val mediaTypes = mutableListOf<String>()   // "image" or "video"
 
@@ -164,7 +164,6 @@ class MainActivity13 : AppCompatActivity() {
         val request = object : StringRequest(
             Method.POST, url,
             { response ->
-                Log.e("API_RAW", "Response: $response")
                 try {
                     val jsonObj = org.json.JSONObject(response)
 
@@ -179,11 +178,12 @@ class MainActivity13 : AppCompatActivity() {
 
                     for (i in 0 until array.length()) {
                         val post = array.getJSONObject(i)
-                        val mediaBase64 = post.getString("media")
+                        val filePath = post.getString("file_path")  // <-- updated field name
                         val type = post.getString("media_type")
                         val id = post.getString("post_id")
+                        val mediaUrl = "http://sociallyah.atwebpages.com/i.php?p=$filePath" // full URL
 
-                        postList.add(mediaBase64)
+                        postList.add(mediaUrl)
                         postIds.add(id)
                         mediaTypes.add(type)
                     }
