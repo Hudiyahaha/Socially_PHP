@@ -262,11 +262,12 @@ class MainActivity5 : AppCompatActivity() {
                             Story(
                                 id = obj.getString("id"),
                                 userId = storyUserId,
-                                mediaBase64 = obj.getString("media"),
+                                mediaUrl = "http://sociallyah.atwebpages.com/i.php?p=${obj.getString("media")}",   // URL from PHP
                                 mediaType = obj.getString("type"),
                                 timestamp = obj.getLong("timestamp"),
                                 username = obj.getString("username"),
-                                dp = obj.getString("dp")
+                                dpUrl = obj.optString("dp")
+                                // profile picture URL
                             )
                         )
                     }
@@ -290,8 +291,9 @@ class MainActivity5 : AppCompatActivity() {
 
         Volley.newRequestQueue(this).add(request)
     }
+
     fun fetchPosts() {
-        val url = "http://sociallyah.atwebpages.com/get_feedpost.php" // new endpoint
+        val url = "http://sociallyah.atwebpages.com/get_feedpost.php"
         val queue = Volley.newRequestQueue(this)
 
         val request = object : StringRequest(
@@ -308,21 +310,20 @@ class MainActivity5 : AppCompatActivity() {
 
                     for (i in 0 until jsonArray.length()) {
                         val obj = jsonArray.getJSONObject(i)
-                        val mediaBase64 = obj.getString("media")
+                        val mediaUrl = obj.getString("media")      // URL from i.php
                         val mediaType = obj.getString("media_type")
-
-                        if (mediaBase64.isEmpty()) continue
+                        val dpUrl = obj.optString("dp", "")        // URL from i.php
 
                         postList.add(
                             Post(
                                 postId = obj.getString("post_id"),
                                 userId = obj.getString("user_id"),
-                                mediaBase64List = mutableListOf(mediaBase64),
-                                mediaTypeList = mutableListOf(mediaType),
+                                mediaUrlList = listOf(mediaUrl),      // URL list
+                                mediaTypeList = listOf(mediaType),
                                 timestamp = obj.getLong("timestamp"),
                                 username = obj.optString("username", ""),
-                                caption = "", // no caption in current PHP
-                                userProfileBase64 = obj.optString("dp", ""),
+                                caption = "",                         // add if available later
+                                userProfileBase64 = dpUrl,            // URL now
                                 likes = mutableListOf()
                             )
                         )
@@ -342,6 +343,7 @@ class MainActivity5 : AppCompatActivity() {
 
         queue.add(request)
     }
+
 
 
 

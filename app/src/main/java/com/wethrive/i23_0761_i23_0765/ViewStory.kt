@@ -1,11 +1,9 @@
 package com.wethrive.i23_0761_i23_0765
 
-import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.util.Base64
 import android.util.Log
 import android.view.View
 import android.widget.ImageView
@@ -15,9 +13,9 @@ import android.widget.VideoView
 import androidx.appcompat.app.AppCompatActivity
 import com.android.volley.toolbox.StringRequest
 import com.android.volley.toolbox.Volley
+import com.squareup.picasso.Picasso
 import de.hdodenhof.circleimageview.CircleImageView
 import org.json.JSONArray
-import java.io.File
 
 class ViewStory : AppCompatActivity() {
 
@@ -50,7 +48,6 @@ class ViewStory : AppCompatActivity() {
             return
         }
 
-
         fetchStories(userId)
     }
 
@@ -73,19 +70,22 @@ class ViewStory : AppCompatActivity() {
                                 Story(
                                     id = obj.getString("id"),
                                     userId = obj.getString("userId"),
-                                    mediaBase64 = obj.getString("media"),
+                                    mediaUrl = "http://sociallyah.atwebpages.com/i.php?p=${obj.getString("media")}",
                                     mediaType = obj.getString("type"),
                                     timestamp = timestamp,
                                     username = obj.optString("username", "Unknown"),
-                                    dp = obj.optString("dp")
+                                    dpUrl = obj.optString("dp")
+
+                                    // URL now
                                 )
                             )
+
                         }
                     }
 
                     if (stories.isNotEmpty()) {
                         showStory(0)
-                        loadProfile(stories[0].dp, stories[0].username)
+                        loadProfile(stories[0].dpUrl, stories[0].username)
                     } else {
                         Toast.makeText(this, "No stories available", Toast.LENGTH_SHORT).show()
                         finish()
@@ -114,10 +114,11 @@ class ViewStory : AppCompatActivity() {
     private fun loadProfile(dpBase64: String?, username: String?) {
         if (!dpBase64.isNullOrEmpty()) {
             try {
-                val bytes = Base64.decode(dpBase64, Base64.DEFAULT)
-                val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                val bytes = android.util.Base64.decode(dpBase64, android.util.Base64.DEFAULT)
+                val bitmap = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                 profile.setImageBitmap(bitmap)
-            } catch (e: Exception) {
+            } catch (e: IllegalArgumentException) {
+                // If decoding fails, fallback to default image
                 profile.setImageResource(R.drawable.me)
             }
         } else {
@@ -127,6 +128,7 @@ class ViewStory : AppCompatActivity() {
         usernameView.text = username ?: "Unknown"
     }
 
+
     private fun showStory(index: Int) {
         if (index >= stories.size) {
             finish()
@@ -135,36 +137,32 @@ class ViewStory : AppCompatActivity() {
 
         currentIndex = index
         val story = stories[index]
+        Log.d("STORY_URL", "Loading media: ${story.mediaUrl}")
+        Log.d("STORY_TYPE", "Media type: ${story.mediaType}")
 
-        try {
-            val bytes = Base64.decode(story.mediaBase64, Base64.DEFAULT)
-            if (story.mediaType == "image") {
-                val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                storyImage.setImageBitmap(bitmap)
-                storyImage.visibility = View.VISIBLE
-                storyVideo.visibility = View.GONE
+        if (story.mediaType == "image") {
+            Picasso.get()
+                .load(story.mediaUrl)
+                .placeholder(R.drawable.me)
+                .error(R.drawable.me)
+                .into(storyImage)
 
-                // Move to next story after 5 seconds
-                handler.postDelayed({ showStory(index + 1) }, 5000)
+            storyImage.visibility = View.VISIBLE
+            storyVideo.visibility = View.GONE
 
-            } else if (story.mediaType == "video") {
-                val tempFile = File.createTempFile("story_temp", ".mp4", cacheDir)
-                tempFile.writeBytes(bytes)
-                storyVideo.setVideoURI(Uri.fromFile(tempFile))
-                storyVideo.visibility = View.VISIBLE
-                storyImage.visibility = View.GONE
+            // Move to next story after 5 seconds
+            handler.postDelayed({ showStory(index + 1) }, 5000)
 
-                storyVideo.setOnCompletionListener {
-                    showStory(index + 1)
-                }
+        } else if (story.mediaType == "video") {
+            storyVideo.setVideoURI(Uri.parse(story.mediaUrl))
+            storyVideo.visibility = View.VISIBLE
+            storyImage.visibility = View.GONE
 
-                storyVideo.start()
+            storyVideo.setOnCompletionListener {
+                showStory(index + 1)
             }
 
-        } catch (e: Exception) {
-            e.printStackTrace()
-            Toast.makeText(this, "Error showing story", Toast.LENGTH_SHORT).show()
-            showStory(index + 1)
+            storyVideo.start()
         }
     }
 }
