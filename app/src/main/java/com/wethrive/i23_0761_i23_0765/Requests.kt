@@ -8,17 +8,22 @@ import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.*
+import com.android.volley.toolbox.StringRequest
+import com.android.volley.toolbox.Volley
+import org.json.JSONArray
+import org.json.JSONObject
 
 class Requests : AppCompatActivity() {
     private lateinit var recycler: RecyclerView
     private lateinit var adapter: RequestsAdapter
     private lateinit var emptyView: TextView
-    private val database: FirebaseDatabase by lazy { FirebaseDatabase.getInstance() }
-    private val usersRef: DatabaseReference by lazy { database.getReference("Users") }
-    private var requestsListener: ValueEventListener? = null
-    private lateinit var currentUid: String
+    private var current: String = ""
+
+    // In-flight tracking
+    private val pendingUsers: MutableList<String> = mutableListOf()
+    private val loadedUsers: MutableList<UserData> = mutableListOf()
+
+    private val BASE_URL = "http://sociallyah.atwebpages.com/"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -33,141 +38,177 @@ class Requests : AppCompatActivity() {
             onAccept = { user, position -> acceptRequest(user, position) },
             onReject = { user, position -> rejectRequest(user, position) }
         )
-
         recycler.layoutManager = LinearLayoutManager(this)
         recycler.adapter = adapter
 
-        val currentUser = FirebaseAuth.getInstance().currentUser
-        if (currentUser == null) {
-            Toast.makeText(this, "Not signed in", Toast.LENGTH_SHORT).show()
+        // Retrieve current userId from shared preferences (set during login elsewhere)
+        current = getSharedPreferences("user_session", MODE_PRIVATE).getString("userId", "") ?: ""
+
+        if (current.isBlank()) {
+            Toast.makeText(this, "User not logged in", Toast.LENGTH_SHORT).show()
             finish()
             return
         }
-        currentUid = currentUser.uid
+
         loadFollowRequests()
     }
 
     private fun loadFollowRequests() {
-        // Listen to follow requests for the current user
-        val requestsRef = database.getReference("Requests").child(currentUid)
+        emptyView.visibility = View.GONE
+        adapter.submitList(emptyList())
+        pendingUsers.clear()
+        loadedUsers.clear()
 
-        requestsListener = requestsRef.addValueEventListener(object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                android.util.Log.d("Requests", "onDataChange called. Snapshot exists: ${snapshot.exists()}")
-                android.util.Log.d("Requests", "Snapshot children count: ${snapshot.childrenCount}")
+        val url = BASE_URL + "request.php"
 
-                val list = mutableListOf<UserData>()
-                val pendingUsers = mutableListOf<String>()
+        val req = object : StringRequest(Method.POST, url,
+            { response ->
+                try {
+                    val json = JSONObject(response)
+                    if (json.optInt("status") == 1) {
 
-                // Get all user IDs who have requested to follow
-                for (child in snapshot.children) {
-                    val userId = child.key ?: continue
-                    val status = child.getValue(String::class.java)
-                    android.util.Log.d("Requests", "Found child: userId=$userId, status=$status")
-                    if (status == "pending") {
-                        pendingUsers.add(userId)
+                        val arr: JSONArray = json.optJSONArray("requests") ?: JSONArray()
+
+                        for (i in 0 until arr.length()) {
+                            val obj = arr.getJSONObject(i)
+                            val followerId = obj.optString("follower_id")
+                            if (followerId.isNotBlank()) {
+                                pendingUsers.add(followerId)
+                            }
+                        }
+
+                        if (pendingUsers.isEmpty()) {
+                            emptyView.visibility = View.VISIBLE
+                        } else {
+                            // Fetch details for each requester
+                            for (id in pendingUsers) {
+                                fetchUserDetails(id)
+                            }
+                        }
+                    } else {
+                        emptyView.visibility = View.VISIBLE
                     }
-                }
-
-                android.util.Log.d("Requests", "Total pending users: ${pendingUsers.size}")
-
-                if (pendingUsers.isEmpty()) {
-                    adapter.submitList(list)
+                } catch (e: Exception) {
                     emptyView.visibility = View.VISIBLE
-                    return
+                    Toast.makeText(this, "Parse error", Toast.LENGTH_SHORT).show()
                 }
-
-                // Fetch user details for each pending request
-                var loadedCount = 0
-                for (userId in pendingUsers) {
-                    android.util.Log.d("Requests", "Loading user details for: $userId")
-                    usersRef.child(userId).addListenerForSingleValueEvent(object : ValueEventListener {
-                        override fun onDataChange(userSnapshot: DataSnapshot) {
-                            android.util.Log.d("Requests", "User data loaded for $userId, exists: ${userSnapshot.exists()}")
-                            if (userSnapshot.exists()) {
-                                val uname = userSnapshot.child("uname").getValue(String::class.java) ?: "Unknown"
-                                val email = userSnapshot.child("email").getValue(String::class.java) ?: ""
-                                val dp = userSnapshot.child("dp").getValue(String::class.java) ?: ""
-                                val bio = userSnapshot.child("bio").getValue(String::class.java) ?: ""
-                                android.util.Log.d("Requests", "Adding user: $uname")
-                                list.add(UserData(id = userId, uname = uname, email = email, dp = dp, bio = bio))
-                            }
-                            loadedCount++
-                            if (loadedCount == pendingUsers.size) {
-                                android.util.Log.d("Requests", "All users loaded. Total: ${list.size}")
-                                adapter.submitList(list)
-                                emptyView.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
-                            }
-                        }
-
-                        override fun onCancelled(error: DatabaseError) {
-                            android.util.Log.e("Requests", "Failed to load user $userId: ${error.message}")
-                            loadedCount++
-                            if (loadedCount == pendingUsers.size) {
-                                adapter.submitList(list)
-                                emptyView.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
-                            }
-                        }
-                    })
-                }
+            },
+            { error ->
+                emptyView.visibility = View.VISIBLE
+                Toast.makeText(this, "Network error", Toast.LENGTH_SHORT).show()
             }
+        ) {
+            override fun getParams(): MutableMap<String, String> = hashMapOf(
+                "following_id" to current
+            )
+        }
 
-            override fun onCancelled(error: DatabaseError) {
-                android.util.Log.e("Requests", "Database error: ${error.message}")
-                Toast.makeText(this@Requests, "Failed to load requests: ${error.message}", Toast.LENGTH_SHORT).show()
+        Volley.newRequestQueue(this).add(req)
+    }
+
+    private fun fetchUserDetails(userId: String) {
+        val url = BASE_URL + "get_dp.php"
+
+        val req = object : StringRequest(Method.POST, url,
+            { response ->
+                try {
+                    val json = JSONObject(response)
+                    if (json.optInt("status") == 1) {
+                        val username = json.optString("username", "Unknown")
+                        val bio = json.optString("bio", "Hey there! I am using Socially.")
+                        val dp = json.optString("dp", "")
+
+                        loadedUsers.add(
+                            UserData(
+                                id = userId,
+                                uname = username,
+                                email = "", // not provided
+                                dp = dp,
+                                bio = bio
+                            )
+                        )
+                    }
+                } catch (_: Exception) {}
+                checkAllLoaded()
+            },
+            { _ ->
+                checkAllLoaded()
             }
-        })
+        ) {
+            override fun getParams(): MutableMap<String, String> = hashMapOf(
+                "userId" to userId
+            )
+        }
+        Volley.newRequestQueue(this).add(req)
+    }
+
+    private fun checkAllLoaded() {
+        if (loadedUsers.size == pendingUsers.size) {
+            adapter.submitList(loadedUsers.toList())
+            emptyView.visibility = if (loadedUsers.isEmpty()) View.VISIBLE else View.GONE
+        }
     }
 
     private fun acceptRequest(user: UserData, position: Int) {
-        val userId = user.id ?: return
+        val followerId = user.id ?: return
+        val url = BASE_URL + "accept_follow_request.php"
 
-        // Add to followers list
-        database.getReference("Followers").child(currentUid).child(userId).setValue(true)
-            .addOnSuccessListener {
-                // Add current user to the requester's following list
-                database.getReference("Following").child(userId).child(currentUid).setValue(true)
+        val req = object : StringRequest(Method.POST, url,
+            { response ->
+                try {
+                    val json = JSONObject(response)
+                    if (json.optInt("status") == 1) {
 
-                // Remove the request
-                database.getReference("Requests").child(currentUid).child(userId).removeValue()
-                    .addOnSuccessListener {
                         adapter.removeItem(position)
                         Toast.makeText(this, "Request accepted", Toast.LENGTH_SHORT).show()
-
-                        // Show empty view if no more requests
-                        if (adapter.itemCount == 0) {
-                            emptyView.visibility = View.VISIBLE
-                        }
+                        if (adapter.itemCount == 0) emptyView.visibility = View.VISIBLE
+                    } else {
+                        Toast.makeText(this, json.optString("message", "Failed"), Toast.LENGTH_SHORT).show()
                     }
-            }
-            .addOnFailureListener { e ->
-                Toast.makeText(this, "Failed to accept request: ${e.message}", Toast.LENGTH_SHORT).show()
-            }
-    }
-
-    private fun rejectRequest(user: UserData, position: Int) {
-        val userId = user.id ?: return
-
-        // Remove the request
-        database.getReference("Requests").child(currentUid).child(userId).removeValue()
-            .addOnSuccessListener {
-                adapter.removeItem(position)
-                Toast.makeText(this, "Request rejected", Toast.LENGTH_SHORT).show()
-
-                // Show empty view if no more requests
-                if (adapter.itemCount == 0) {
-                    emptyView.visibility = View.VISIBLE
+                } catch (e: Exception) {
+                    Toast.makeText(this, "Invalid server response", Toast.LENGTH_SHORT).show()
                 }
+            },
+            { _ ->
+                Toast.makeText(this, "Network error", Toast.LENGTH_SHORT).show()
             }
-            .addOnFailureListener { e ->
-                Toast.makeText(this, "Failed to reject request: ${e.message}", Toast.LENGTH_SHORT).show()
+        ) {
+            override fun getParams(): MutableMap<String, String> = hashMapOf(
+                "follower_id" to followerId,
+                "following_id" to current
+            )
+        }
+        Volley.newRequestQueue(this).add(req)
+    }
+    private fun rejectRequest(user: UserData, position: Int) {
+        val followerId = user.id ?: return
+        val url = BASE_URL + "reject_follow_request.php"
+
+        val req = object : StringRequest(Method.POST, url,
+            { response ->
+                try {
+                    val json = JSONObject(response)
+                    if (json.optInt("status") == 1) {
+                        adapter.removeItem(position)
+                        Toast.makeText(this, "Request rejected", Toast.LENGTH_SHORT).show()
+                        if (adapter.itemCount == 0) emptyView.visibility = View.VISIBLE
+                    } else {
+                        Toast.makeText(this, json.optString("message", "Failed"), Toast.LENGTH_SHORT).show()
+                    }
+                } catch (e: Exception) {
+                    Toast.makeText(this, "Invalid server response", Toast.LENGTH_SHORT).show()
+                }
+            },
+            { _ ->
+                Toast.makeText(this, "Network error", Toast.LENGTH_SHORT).show()
             }
+        ) {
+            override fun getParams(): MutableMap<String, String> = hashMapOf(
+                "follower_id" to followerId,
+                "following_id" to current
+            )
+        }
+        Volley.newRequestQueue(this).add(req)
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        requestsListener?.let {
-            database.getReference("Requests").child(currentUid).removeEventListener(it)
-        }
-    }
 }

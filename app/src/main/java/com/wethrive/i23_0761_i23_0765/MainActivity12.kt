@@ -34,8 +34,6 @@ class MainActivity12 : AppCompatActivity() {
         val requests=findViewById<TextView>(R.id.follow_count)
         val following=findViewById<TextView>(R.id.following)
 
-
-
         val BASE_URL = "http://sociallyah.atwebpages.com/"
 
         val pref=getSharedPreferences("user_session", MODE_PRIVATE)
@@ -54,14 +52,6 @@ class MainActivity12 : AppCompatActivity() {
                             val count = json.getInt("count")
                             requests.text = "$count"
 
-//                            val list = json.getJSONArray("requests")
-//
-//                            val pendingList = mutableListOf<String>()
-//
-//                            for (i in 0 until list.length()) {
-//                                val item = list.getJSONObject(i)
-//                                pendingList.add(item.getString("follower_id"))
-//                            }
                         }
                     } catch (e: Exception) {
                         e.printStackTrace()
@@ -102,7 +92,6 @@ class MainActivity12 : AppCompatActivity() {
             finish()
         }
 
-
         home.setOnClickListener{
             val intent= Intent(this, MainActivity5::class.java)
             intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
@@ -121,7 +110,5 @@ class MainActivity12 : AppCompatActivity() {
             val intent = Intent(this, MainActivity16::class.java)
             startActivity(intent)
         }
-
-
     }
 }
