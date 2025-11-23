@@ -1,8 +1,4 @@
 package com.wethrive.i23_0761_i23_0765
-import android.content.Intent
-import android.graphics.BitmapFactory
-import android.util.Base64
-
 
 import android.view.LayoutInflater
 import android.view.View
@@ -10,7 +6,7 @@ import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
-
+import com.squareup.picasso.Picasso
 
 class StoryAdapter(
     val stories: MutableList<Story>,
@@ -33,10 +29,13 @@ class StoryAdapter(
 
         holder.username.text = story.username
 
-        if (!story.dp.isNullOrEmpty()) {
-            val bytes = Base64.decode(story.dp, Base64.DEFAULT)
-            val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-            holder.img.setImageBitmap(bitmap)
+        // Load the story media (image or video thumbnail if applicable) using Picasso
+        if (!story.mediaUrl.isNullOrEmpty()) {
+            Picasso.get()
+                .load(story.mediaUrl)
+                .placeholder(R.drawable.dummy) // default placeholder
+                .error(R.drawable.me)       // fallback if loading fails
+                .into(holder.img)
         } else {
             holder.img.setImageResource(R.drawable.me)
         }

@@ -262,11 +262,12 @@ class MainActivity5 : AppCompatActivity() {
                             Story(
                                 id = obj.getString("id"),
                                 userId = storyUserId,
-                                mediaBase64 = obj.getString("media"),
+                                mediaUrl = "http://sociallyah.atwebpages.com/i.php?p=${obj.getString("media")}",   // URL from PHP
                                 mediaType = obj.getString("type"),
                                 timestamp = obj.getLong("timestamp"),
                                 username = obj.getString("username"),
-                                dp = obj.getString("dp")
+                                dpUrl = obj.optString("dp")
+                                // profile picture URL
                             )
                         )
                     }
@@ -290,6 +291,7 @@ class MainActivity5 : AppCompatActivity() {
 
         Volley.newRequestQueue(this).add(request)
     }
+
     fun fetchPosts() {
         val url = "http://sociallyah.atwebpages.com/get_feedpost.php" // new endpoint
         val queue = Volley.newRequestQueue(this)
