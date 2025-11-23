@@ -48,6 +48,7 @@ class MainActivity13 : AppCompatActivity() {
         val following= findViewById<TextView>(R.id.following)
         val followers_screen= findViewById<LinearLayout>(R.id.follower_screen)
         val following_screen= findViewById<LinearLayout>(R.id.following_screen)
+
         val prefs = getSharedPreferences("user_session", MODE_PRIVATE)
         uid = prefs.getString("userId", "")?.takeIf { it.isNotEmpty() }
             ?: run {
@@ -56,6 +57,7 @@ class MainActivity13 : AppCompatActivity() {
             }
         val savedDp = prefs.getString("dp", "")
         user.text = prefs.getString("username", "User")
+        uname.text = prefs.getString("username", "User")
         bio.text = prefs.getString("bio", "")
         posts.text=prefs.getInt("post_count", 0).toString()
 

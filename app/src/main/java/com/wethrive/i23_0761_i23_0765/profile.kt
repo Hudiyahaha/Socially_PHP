@@ -60,14 +60,10 @@ class profile : AppCompatActivity() {
         val following= findViewById<TextView>(R.id.following)
 
         val current= getSharedPreferences("user_session", MODE_PRIVATE).getString("userId", "") ?: ""
-
-        // Receive the targetId from the intent
         targetId = intent.getStringExtra("userId")
         val target = targetId ?: return
 
-        val requestsRef = FirebaseDatabase.getInstance().getReference("Requests")
-        val followingRef = FirebaseDatabase.getInstance().getReference("Following")
-        val followersRef = FirebaseDatabase.getInstance().getReference("Followers")
+        val BASE_URL = "http://sociallyah.atwebpages.com/"
 
         fun updateButtonState(state: String) {
             when (state) {
@@ -91,45 +87,146 @@ class profile : AppCompatActivity() {
 
         // --- STEP 1: Detect current relationship state ---
         fun detectState() {
-            followingRef.child(current).child(target).get().addOnSuccessListener { followingSnap ->
-                if (followingSnap.exists()) {
-                    updateButtonState("Following")
-                } else {
-                    requestsRef.child(target).child(current).get().addOnSuccessListener { requestSnap ->
-                        if (requestSnap.exists()) {
-                            updateButtonState("Requested")
-                        } else {
-                            updateButtonState("Follow")
+            val url = BASE_URL + "detect_follow_state.php"
+
+            val req = object : StringRequest(Method.POST, url,
+                { response ->
+                    try {
+                        val json = JSONObject(response)
+
+                        if (json.getInt("status") == 1) {
+                            val state = json.getString("state")
+                            updateButtonState(state)   // SAME function you already have
                         }
+
+                    } catch (e: Exception) {
+                        e.printStackTrace()
                     }
+                },
+                { error ->
+                    Toast.makeText(this, "Network error", Toast.LENGTH_SHORT).show()
+                }
+            ) {
+                override fun getParams(): MutableMap<String, String> {
+                    return hashMapOf(
+                        "follower_id" to current,
+                        "following_id" to targetId!!
+                    )
                 }
             }
+
+            Volley.newRequestQueue(this).add(req)
+        }
+
+        fun sendFollowRequest() {
+            val url = BASE_URL + "send_follow_request.php"
+
+            val req = object : StringRequest(Method.POST, url,
+                { response ->
+                    try {
+                        val json = JSONObject(response)
+                        if (json.getInt("status") == 1) {
+                            Toast.makeText(this, "Follow request sent!", Toast.LENGTH_SHORT).show()
+                            updateButtonState("Requested")
+                        } else {
+                            Toast.makeText(this, json.getString("message"), Toast.LENGTH_SHORT).show()
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                },
+                { error ->
+                    Toast.makeText(this, "Network error", Toast.LENGTH_SHORT).show()
+                }
+            ) {
+                override fun getParams(): MutableMap<String, String> {
+                    return hashMapOf(
+                        "follower_id" to current,
+                        "following_id" to targetId!!
+                    )
+                }
+            }
+
+            Volley.newRequestQueue(this).add(req)
+        }
+
+        fun cancelFollowRequest() {
+            val url = BASE_URL + "cancel_follow_request.php"
+
+            val req = object : StringRequest(Method.POST, url,
+                { response ->
+                    try {
+                        val json = JSONObject(response)
+                        if (json.getInt("status") == 1) {
+                            Toast.makeText(this, "Follow request canceled", Toast.LENGTH_SHORT).show()
+                            updateButtonState("Follow")
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                },
+                { error ->
+                    Toast.makeText(this, "Network error", Toast.LENGTH_SHORT).show()
+                }
+            ) {
+                override fun getParams(): MutableMap<String, String> {
+                    return hashMapOf(
+                        "follower_id" to current,
+                        "following_id" to targetId!!
+                    )
+                }
+            }
+
+            Volley.newRequestQueue(this).add(req)
+        }
+
+        fun unfollowUser() {
+            val url = BASE_URL + "unfollow.php"
+
+            val req = object : StringRequest(Method.POST, url,
+                { response ->
+                    try {
+                        val json = JSONObject(response)
+                        if (json.getInt("status") == 1) {
+                            Toast.makeText(this, "Unfollowed", Toast.LENGTH_SHORT).show()
+                            updateButtonState("Follow")
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                },
+                { error ->
+                    Toast.makeText(this, "Network error", Toast.LENGTH_SHORT).show()
+                }
+            ) {
+                override fun getParams(): MutableMap<String, String> {
+                    return hashMapOf(
+                        "follower_id" to current,
+                        "following_id" to targetId!!
+                    )
+                }
+            }
+
+            Volley.newRequestQueue(this).add(req)
         }
 
 // --- STEP 2: Handle button clicks ---
         follow.setOnClickListener {
             when (follow.text.toString()) {
                 "Follow" -> {
-                    requestsRef.child(target).child(current).setValue("pending").addOnSuccessListener {
+                    sendFollowRequest()
                         Toast.makeText(this, "Follow request sent!", Toast.LENGTH_SHORT).show()
-                        updateButtonState("Requested")
-                    }
                 }
 
                 "Requested" -> {
-                    requestsRef.child(target).child(current).removeValue().addOnSuccessListener {
+                    cancelFollowRequest()
                         Toast.makeText(this, "Follow request canceled", Toast.LENGTH_SHORT).show()
-                        updateButtonState("Follow")
-                    }
                 }
 
                 "Following" -> {
                     // Remove from Followers and Following
-                    followingRef.child(current).child(target).removeValue()
-                    followersRef.child(target).child(current).removeValue().addOnSuccessListener {
+                    unfollowUser()
                         Toast.makeText(this, "Unfollowed", Toast.LENGTH_SHORT).show()
-                        updateButtonState("Follow")
-                    }
                 }
             }
         }
@@ -264,9 +361,6 @@ class profile : AppCompatActivity() {
 
     private fun loadUserProfile(target: String, current: String) {
         Toast.makeText(this, "Loading profile for user: $target", Toast.LENGTH_SHORT).show()
-
-        val databaseref = FirebaseDatabase.getInstance().getReference("Users").child(target)
-        val currentref = FirebaseDatabase.getInstance().getReference("Users").child(current)
 
         val request = object : StringRequest(
             Request.Method.POST,

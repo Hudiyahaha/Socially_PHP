@@ -5,16 +5,20 @@ import android.os.Bundle
 import android.widget.ImageView
 import android.widget.RelativeLayout
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import com.android.volley.toolbox.StringRequest
+import com.android.volley.toolbox.Volley
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ValueEventListener
 import de.hdodenhof.circleimageview.CircleImageView
+import org.json.JSONObject
 
 class MainActivity12 : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -30,20 +34,54 @@ class MainActivity12 : AppCompatActivity() {
         val requests=findViewById<TextView>(R.id.follow_count)
         val following=findViewById<TextView>(R.id.following)
 
-        val user=FirebaseAuth.getInstance().currentUser!!.uid
-        val dbref=FirebaseDatabase.getInstance().getReference("Requests").child(user)
 
-        dbref.addListenerForSingleValueEvent(object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                val count = snapshot.childrenCount
-                requests.text = count.toString()
+
+        val BASE_URL = "http://sociallyah.atwebpages.com/"
+
+        val pref=getSharedPreferences("user_session", MODE_PRIVATE)
+        val current = pref.getString("userId", "") ?: ""
+
+        fun loadPendingRequests() {
+            val url = BASE_URL + "request.php"
+
+            val req = object : StringRequest(Method.POST, url,
+                { response ->
+                    try {
+                        val json = JSONObject(response)
+
+                        if (json.getInt("status") == 1) {
+
+                            val count = json.getInt("count")
+                            requests.text = "$count"
+
+//                            val list = json.getJSONArray("requests")
+//
+//                            val pendingList = mutableListOf<String>()
+//
+//                            for (i in 0 until list.length()) {
+//                                val item = list.getJSONObject(i)
+//                                pendingList.add(item.getString("follower_id"))
+//                            }
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                },
+                {
+                    Toast.makeText(this, "Network error", Toast.LENGTH_SHORT).show()
+                }
+            ) {
+                override fun getParams(): MutableMap<String, String> {
+                    return hashMapOf(
+                        "following_id" to current
+                    )
+                }
             }
 
-            override fun onCancelled(error: DatabaseError) {
-                // Handle error if needed
-                requests.text="-1"
-            }
-        })
+            Volley.newRequestQueue(this).add(req)
+        }
+
+        loadPendingRequests()
 
         follow.setOnClickListener {
             val intent= Intent(this, Requests::class.java)
@@ -83,10 +121,6 @@ class MainActivity12 : AppCompatActivity() {
             val intent = Intent(this, MainActivity16::class.java)
             startActivity(intent)
         }
-
-
-
-
 
 
     }
