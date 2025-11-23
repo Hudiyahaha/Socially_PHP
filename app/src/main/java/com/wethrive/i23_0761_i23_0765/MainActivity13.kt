@@ -55,6 +55,9 @@ class MainActivity13 : AppCompatActivity() {
                 return
             }
         val savedDp = prefs.getString("dp", "")
+        user.text = prefs.getString("username", "User")
+        bio.text = prefs.getString("bio", "")
+        posts.text=prefs.getInt("post_count", 0).toString()
 
         if (!savedDp.isNullOrEmpty()) {
             try {
@@ -161,15 +164,20 @@ class MainActivity13 : AppCompatActivity() {
             { response ->
                 Log.e("API_RAW", "Response: $response")
                 try {
-                    val array = org.json.JSONArray(response)
+                    val jsonObj = org.json.JSONObject(response)
 
+                    // Update post count
+                    val postCount = jsonObj.getInt("post_count")
+                    findViewById<TextView>(R.id.posts).text = postCount.toString()
+
+                    val array = jsonObj.getJSONArray("posts")
                     postList.clear()
                     postIds.clear()
                     mediaTypes.clear()
 
                     for (i in 0 until array.length()) {
                         val post = array.getJSONObject(i)
-                        val mediaBase64 = post.getString("media") // <-- updated
+                        val mediaBase64 = post.getString("media")
                         val type = post.getString("media_type")
                         val id = post.getString("post_id")
 
@@ -194,6 +202,7 @@ class MainActivity13 : AppCompatActivity() {
 
         queue.add(request)
     }
+
 
 }
 
