@@ -9,11 +9,8 @@ import androidx.appcompat.app.AppCompatActivity
 import com.google.firebase.database.FirebaseDatabase
 import de.hdodenhof.circleimageview.CircleImageView
 
-
 import android.graphics.BitmapFactory
-import androidx.collection.emptyLongSet
 import com.google.android.material.button.MaterialButton
-import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.ValueEventListener
@@ -25,6 +22,12 @@ import android.graphics.Color
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+
+import com.android.volley.Request
+import com.android.volley.toolbox.StringRequest
+import com.android.volley.toolbox.Volley
+import org.json.JSONObject
+import java.io.ByteArrayOutputStream
 
 class profile : AppCompatActivity() {
     private var targetId: String? = null
@@ -262,48 +265,67 @@ class profile : AppCompatActivity() {
     private fun loadUserProfile(target: String, current: String) {
         Toast.makeText(this, "Loading profile for user: $target", Toast.LENGTH_SHORT).show()
 
-        val databaseref= FirebaseDatabase.getInstance().getReference("Users").child(target)
-        val currentref= FirebaseDatabase.getInstance().getReference("Users").child(current)
+        val databaseref = FirebaseDatabase.getInstance().getReference("Users").child(target)
+        val currentref = FirebaseDatabase.getInstance().getReference("Users").child(current)
 
+        val request = object : StringRequest(
+            Request.Method.POST,
+            "http://sociallyah.atwebpages.com/get_dp.php",
+            { response ->
+                try {
+                    val json = JSONObject(response)
 
-        bio.text="Hey there! I am using Socially." // Jugaar pro max ;)
+                    if (json.getInt("status") == 1) {
+                        val username = json.getString("username")
+                        uname.text = username
+                        name.text = username
+                        val biography = json.getString("bio")
+                        bio.text = biography
 
-            databaseref.child("uname").get().addOnSuccessListener {
-                if(it.exists())
-                {
-                    val username= it.getValue(String::class.java)
-                    uname.text=username
-                    name.text=username
+                        val profile = json.getString("dp")
+                        if (!profile.isNullOrBlank()) {
 
-                }
-            }
+                            val imageBytes = Base64.decode(profile, Base64.DEFAULT)
+                            val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+                            dp.setImageBitmap(bitmap)
+                        }
 
-            databaseref.child("dp").get().addOnSuccessListener {
-                if(it.exists())
-                {
-                    val profile= it.getValue(String::class.java)
-                    // Attempt to decode base64 avatar if present
-                    if (!profile.isNullOrBlank()) {
-
-                        val imageBytes = Base64.decode(profile, Base64.DEFAULT)
-                        val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
-                        dp.setImageBitmap(bitmap)
+                    } else {
+                        Toast.makeText(this, json.getString("message"), Toast.LENGTH_LONG).show()
                     }
+
+                } catch (e: Exception) {
+                    Toast.makeText(this, "Invalid server response", Toast.LENGTH_LONG).show()
                 }
+            },
+            { error ->
+                Toast.makeText(this, error.toString(), Toast.LENGTH_LONG).show()
             }
+        ) {
+            override fun getParams(): Map<String, String> {
+                val params = hashMapOf<String, String>()
+                params["userId"] = target
+                return params
 
-            currentref.child("dp").get().addOnSuccessListener {
-                if(it.exists())
-                {
-                    val profile= it.getValue(String::class.java)
-                    // Attempt to decode base64 avatar if present
-                    if (!profile.isNullOrBlank()) {
+            }
+        }
 
-                        val imageBytes = Base64.decode(profile, Base64.DEFAULT)
-                        val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
-                        profile_bottom.setImageBitmap(bitmap)
-                    }
+        Volley.newRequestQueue(this).add(request)
+
+        // Load profile picture from SharedPreferences
+        val sharedPrefs = getSharedPreferences("user_session", Context.MODE_PRIVATE)
+        val base64String = sharedPrefs.getString("dp", null)
+
+        if (!base64String.isNullOrEmpty()) {
+            try {
+                val bytes = Base64.decode(base64String, Base64.DEFAULT)
+                val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                if (bitmap != null) {
+                    profile_bottom.setImageBitmap(bitmap)
                 }
+            } catch (e: Exception) {
+                // Handle decoding error
+                profile_bottom.setImageResource(R.drawable.me)
             }
         }
     }

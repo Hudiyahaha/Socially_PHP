@@ -36,6 +36,7 @@ class MainActivity2 : AppCompatActivity() {
         val signup = findViewById<Button>(R.id.signup)
         val login = findViewById<TextView>(R.id.login)
         val profile = findViewById<CircleImageView>(R.id.profile_image)
+        val bio= findViewById<EditText>(R.id.bio)
 
         val prefs = getSharedPreferences("user_session", MODE_PRIVATE)
         prefs.edit().clear().apply()
@@ -59,6 +60,7 @@ class MainActivity2 : AppCompatActivity() {
             val em = email.text.toString().trim()
             val pa = pass.text.toString().trim()
             val uname = name.text.toString().trim()
+            val bioText = bio.text.toString().trim()
 
             if (em.isEmpty()) {
                 email.error = "Email required"
@@ -95,7 +97,8 @@ class MainActivity2 : AppCompatActivity() {
                             Toast.makeText(this, json.getString("message"), Toast.LENGTH_LONG).show()
                         }
 
-                    } catch (e: Exception) {
+                    }
+                    catch (e: Exception) {
                         Toast.makeText(this, "Invalid server response", Toast.LENGTH_LONG).show()
                     }
                 },
@@ -108,7 +111,8 @@ class MainActivity2 : AppCompatActivity() {
                         "username" to uname,
                         "email" to em,
                         "password" to pa,
-                        "image" to encodedImage
+                        "image" to encodedImage,
+                        "bio" to bioText
                     )
                 }
             }
