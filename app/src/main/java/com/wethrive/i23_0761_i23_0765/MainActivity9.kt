@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.database.ContentObserver
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.net.ConnectivityManager
@@ -76,6 +77,12 @@ class MainActivity9 : AppCompatActivity() {
     private val BASE_URL = "http://sociallyah.atwebpages.com/"
 
     private val IMAGE_REQ = 101
+    private val MEDIA_READ_REQ = 501
+
+    // ----------------- Screenshot tracking variables -----------------
+    private var screenshotObserver: ContentObserver? = null
+    private var lastScreenshotKey: String? = null
+    private var lastScreenshotSentAt: Long = 0L
 
     // ----------------- Agora Call Variables -----------------
     private lateinit var audio: ImageView
@@ -191,6 +198,9 @@ class MainActivity9 : AppCompatActivity() {
         // Format: "userId1_userId2" (sorted lexicographically to ensure consistency)
         chatId = if (currentUserId < receiverId) currentUserId + "_" + receiverId else receiverId + "_" + currentUserId
         
+        // Let notification helper know which chat is active to suppress duplicate notifications
+        NotificationHelper.setActiveChatId(chatId)
+        
         // Log the channel name that will be used for Agora (for token generation reference)
         Log.d("MainActivity9", "=== CHANNEL NAME INFO ===")
         Log.d("MainActivity9", "ChatId (messaging): $chatId")
@@ -277,6 +287,9 @@ class MainActivity9 : AppCompatActivity() {
 
         // Start polling for incoming calls
         startCallPolling()
+
+        // Register screenshot observer
+        registerScreenshotObserver()
     }
 
     override fun onResume() {
@@ -289,6 +302,8 @@ class MainActivity9 : AppCompatActivity() {
         handler.postDelayed(fetchAndRetryRunnable, retryIntervalMs)
         // Resume call polling
         startCallPolling()
+        // Register screenshot observer
+        registerScreenshotObserver()
     }
 
     override fun onPause() {
@@ -297,6 +312,8 @@ class MainActivity9 : AppCompatActivity() {
         Log.d("MessagingActivity", "=== CHAT PAUSED - Stopping polling ===")
         handler.removeCallbacksAndMessages(null)
         callPollHandler.removeCallbacksAndMessages(null)
+        // Unregister screenshot observer
+        unregisterScreenshotObserver()
     }
 
     override fun onDestroy() {
@@ -304,6 +321,9 @@ class MainActivity9 : AppCompatActivity() {
 
         // Delete vanish mode messages when closing the chat
         deleteVanishModeMessages()
+
+        // Clear active chat
+        NotificationHelper.setActiveChatId(null)
 
         // Cleanup Agora
         cleanupAgoraEngine()
@@ -1130,6 +1150,10 @@ class MainActivity9 : AppCompatActivity() {
             } else {
                 Toast.makeText(this, "Camera and microphone permissions are required for video calls", Toast.LENGTH_LONG).show()
             }
+        } else if (requestCode == MEDIA_READ_REQ) {
+            if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
+                registerScreenshotObserver()
+            }
         }
     }
 
@@ -1614,5 +1638,146 @@ class MainActivity9 : AppCompatActivity() {
      */
     fun getAgoraChannelName(): String {
         return sanitizeChannelName(chatId)
+    }
+
+    // ----------------- Screenshot Detection Functions -----------------
+
+    private fun hasMediaReadPermission(): Boolean {
+        return if (Build.VERSION.SDK_INT >= 33) {
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.READ_MEDIA_IMAGES
+            ) == PackageManager.PERMISSION_GRANTED
+        } else {
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.READ_EXTERNAL_STORAGE
+            ) == PackageManager.PERMISSION_GRANTED
+        }
+    }
+
+    private fun requestMediaReadPermissionIfNeeded() {
+        if (hasMediaReadPermission()) return
+        if (Build.VERSION.SDK_INT >= 33) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.READ_MEDIA_IMAGES),
+                MEDIA_READ_REQ
+            )
+        } else {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE),
+                MEDIA_READ_REQ
+            )
+        }
+    }
+
+    private fun registerScreenshotObserver() {
+        requestMediaReadPermissionIfNeeded()
+        if (!hasMediaReadPermission()) return
+        if (screenshotObserver != null) return
+        screenshotObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
+            override fun onChange(selfChange: Boolean, uri: Uri?) {
+                super.onChange(selfChange, uri)
+                detectScreenshot(uri)
+            }
+        }
+        contentResolver.registerContentObserver(
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            true,
+            screenshotObserver as ContentObserver
+        )
+    }
+
+    private fun unregisterScreenshotObserver() {
+        screenshotObserver?.let { contentResolver.unregisterContentObserver(it) }
+        screenshotObserver = null
+    }
+
+    private fun detectScreenshot(changedUri: Uri?) {
+        try {
+            val uri = changedUri ?: MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+            val projection = arrayOf(
+                MediaStore.Images.Media.DISPLAY_NAME,
+                MediaStore.Images.Media.RELATIVE_PATH,
+                MediaStore.Images.Media.DATE_ADDED
+            )
+            val sort = MediaStore.Images.Media.DATE_ADDED + " DESC"
+            val cursor = if (changedUri != null) {
+                contentResolver.query(uri, projection, null, null, null)
+            } else {
+                contentResolver.query(uri, projection, null, null, sort)
+            }
+            cursor?.use { c ->
+                if (!c.moveToFirst()) return
+                val name =
+                    c.getString(c.getColumnIndexOrThrow(MediaStore.Images.Media.DISPLAY_NAME)) ?: ""
+                val rel = try {
+                    c.getString(c.getColumnIndexOrThrow(MediaStore.Images.Media.RELATIVE_PATH))
+                } catch (_: Exception) {
+                    ""
+                }
+                val descriptor = (name + "|" + rel).lowercase()
+                val isShot = descriptor.contains("screenshot") || rel.contains(
+                    "Screenshots",
+                    ignoreCase = true
+                )
+                if (isShot) {
+                    val now = System.currentTimeMillis()
+                    val key = name + "|" + rel
+                    if (key != lastScreenshotKey || (now - lastScreenshotSentAt) > 2000) {
+                        lastScreenshotKey = key
+                        lastScreenshotSentAt = now
+                        sendScreenshotEvent()
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.w("MainActivity9", "detectScreenshot failed: ${e.localizedMessage}")
+        }
+    }
+
+    private fun sendScreenshotEvent() {
+        try {
+            val url = BASE_URL + "screenshot_create.php"
+            val req = object : StringRequest(
+                Method.POST, url,
+                { resp ->
+                    try {
+                        val j = JSONObject(resp)
+                        if (j.optInt("status", 0) == 1) {
+                            Log.d("MainActivity9", "Screenshot event sent successfully")
+                        } else {
+                            Log.w("MainActivity9", "Failed to send screenshot event: ${j.optString("error")}")
+                        }
+                    } catch (e: Exception) {
+                        Log.w("MainActivity9", "Parse error sending screenshot: ${e.localizedMessage}")
+                    }
+                },
+                { err ->
+                    Log.w("MainActivity9", "Network error sending screenshot: ${err.message}")
+                }
+            ) {
+                override fun getParams(): MutableMap<String, String> {
+                    val map = HashMap<String, String>()
+                    map["chat_id"] = chatId
+                    map["by"] = currentUserId
+                    map["to"] = receiverId
+                    return map
+                }
+
+                override fun getHeaders(): MutableMap<String, String> {
+                    val headers = HashMap<String, String>()
+                    headers["Cache-Control"] = "no-cache, no-store"
+                    headers["Pragma"] = "no-cache"
+                    return headers
+                }
+            }
+            req.setShouldCache(false)
+            Volley.newRequestQueue(this).add(req)
+        } catch (e: Exception) {
+            Log.w("MainActivity9", "Error sending screenshot event: ${e.localizedMessage}")
+        }
     }
 }
