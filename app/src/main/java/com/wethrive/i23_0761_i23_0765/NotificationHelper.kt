@@ -97,9 +97,11 @@ object NotificationHelper {
             Method.POST, url,
             { resp ->
                 try {
+                    Log.d("NotificationHelper", "Notification response: ${resp.take(500)}")
                     val j = JSONObject(resp)
                     if (j.optInt("status", 0) == 1) {
                         val arr = j.optJSONArray("notifications") ?: JSONArray()
+                        Log.d("NotificationHelper", "Found ${arr.length()} notifications")
                         for (i in 0 until arr.length()) {
                             val notif = arr.getJSONObject(i)
                             processNotification(context, notif, prefs)
@@ -107,13 +109,15 @@ object NotificationHelper {
                         // Update last check time
                         lastNotificationCheck = System.currentTimeMillis()
                         prefs.edit().putLong("last_notification_check", lastNotificationCheck).apply()
+                    } else {
+                        Log.w("NotificationHelper", "Server returned status != 1: ${j.optString("error", "Unknown error")}")
                     }
                 } catch (e: Exception) {
-                    Log.w("NotificationHelper", "Error parsing notifications: ${e.localizedMessage}")
+                    Log.e("NotificationHelper", "Error parsing notifications: ${e.localizedMessage}", e)
                 }
             },
             { err ->
-                Log.w("NotificationHelper", "Error fetching notifications: ${err.message}")
+                Log.e("NotificationHelper", "Error fetching notifications: ${err.message}", err)
             }
         ) {
             override fun getParams(): MutableMap<String, String> {
@@ -140,8 +144,13 @@ object NotificationHelper {
         val type = notif.optString("type")
         val notifId = notif.optString("notification_id")
         
+        Log.d("NotificationHelper", "Processing notification: type=$type, id=$notifId")
+        
         // Skip if already notified
-        if (wasNotified(prefs, notifId)) return
+        if (wasNotified(prefs, notifId)) {
+            Log.d("NotificationHelper", "Skipping already notified: $notifId")
+            return
+        }
 
         when (type) {
             "message" -> {
