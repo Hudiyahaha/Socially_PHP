@@ -37,6 +37,7 @@ android {
 }
 
 dependencies {
+    implementation("androidx.recyclerview:recyclerview:1.3.2")
     implementation("com.squareup.picasso:picasso:2.8")
     implementation("de.hdodenhof:circleimageview:3.1.0")
     implementation("io.agora.rtc:full-sdk:4.2.2")

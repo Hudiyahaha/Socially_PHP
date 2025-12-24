@@ -53,9 +53,11 @@ class DMAdapter(private val items: MutableList<DMItem>) : RecyclerView.Adapter<D
 
         holder.itemView.setOnClickListener {
             val ctx = holder.itemView.context
+
             val i = Intent(ctx, MainActivity9::class.java)
             i.putExtra("receiverId", item.id)
             i.putExtra("chatName", item.name)
+
             // Forward share extras if present
             sharePostOwnerId?.let { i.putExtra("sharePostOwnerId", it) }
             sharePostId?.let { i.putExtra("sharePostId", it) }

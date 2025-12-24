@@ -6,31 +6,31 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.ChildEventListener
-import com.google.firebase.database.DataSnapshot
-import com.google.firebase.database.DatabaseError
-import com.google.firebase.database.FirebaseDatabase
+import com.android.volley.Request.Method
+import com.android.volley.toolbox.StringRequest
+import com.android.volley.toolbox.Volley
+import org.json.JSONArray
+import org.json.JSONException
+import org.json.JSONObject
 
 object NotificationHelper {
-    private const val CHANNEL_ID = "follow_req_channel"
+    private const val CHANNEL_ID = "notifications_channel"
     private const val NOTIF_ID_BASE = 3000
     private const val PREFS = "notif_prefs"
+    private const val BASE_URL = "http://sociallyah.atwebpages.com/"
 
-    private var attachedUid: String? = null
-    private var followChildListener: ChildEventListener? = null
-
-    // Messages listeners
-    private var messagesRootListener: ChildEventListener? = null
-    private val chatListeners = mutableMapOf<String, ChildEventListener>()
-    private var attachStartMs: Long = 0L
     @Volatile private var activeChatId: String? = null
-
-    // Screenshot events
-    private var screenshotRootListener: ChildEventListener? = null
-    private val screenshotChatListeners = mutableMapOf<String, ChildEventListener>()
+    private var notificationHandler: Handler? = null
+    private var notificationRunnable: Runnable? = null
+    private val pollIntervalMs = 5_000L // Poll every 5 seconds
+    private var lastNotificationCheck: Long = 0L
+    private var currentUserId: String? = null
+    private var isPolling: Boolean = false
 
     fun setActiveChatId(chatId: String?) {
         activeChatId = chatId
@@ -41,10 +41,10 @@ object NotificationHelper {
             val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Follow Requests",
+                "App Notifications",
                 NotificationManager.IMPORTANCE_DEFAULT
             )
-            channel.description = "Notifications for new follow requests and messages"
+            channel.description = "Notifications for messages, follow requests, and screenshot alerts"
             nm.createNotificationChannel(channel)
         }
     }
@@ -58,135 +58,180 @@ object NotificationHelper {
         }
     }
 
-    // FOLLOW REQUESTS
-    fun startFollowRequestListener(context: Context) {
-        val user = FirebaseAuth.getInstance().currentUser ?: return
-        val uid = user.uid
-        if (attachedUid == uid && followChildListener != null) return
+    // Start polling for all notifications (messages, follow requests, screenshots)
+    fun startNotificationPolling(context: Context, userId: String) {
+        if (isPolling && currentUserId == userId) return
 
+        currentUserId = userId
+        isPolling = true
         ensureChannel(context)
 
-        // Detach previous if any
-        followChildListener?.let {
-            FirebaseDatabase.getInstance().getReference("Requests").child(attachedUid ?: return).removeEventListener(it)
+        if (notificationHandler == null) {
+            notificationHandler = Handler(Looper.getMainLooper())
         }
-        attachedUid = uid
 
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val requestsRef = FirebaseDatabase.getInstance().getReference("Requests").child(uid)
-        val listener = object : ChildEventListener {
-            override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) {
-                val requesterId = snapshot.key ?: return
-                if (wasNotified(prefs, "req_" + requesterId)) return
-                FirebaseDatabase.getInstance().getReference("Users").child(requesterId).child("uname").get()
-                    .addOnSuccessListener { unameSnap ->
-                        val uname = unameSnap.getValue(String::class.java) ?: "Someone"
-                        showFollowRequestNotification(context, uname)
-                        markNotified(prefs, "req_" + requesterId)
-                    }
+        lastNotificationCheck = prefs.getLong("last_notification_check", System.currentTimeMillis())
+
+        notificationRunnable = object : Runnable {
+            override fun run() {
+                if (!isPolling) return
+                fetchNotifications(context, userId)
+                notificationHandler?.postDelayed(this, pollIntervalMs)
             }
-            override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) {}
-            override fun onChildRemoved(snapshot: DataSnapshot) {}
-            override fun onChildMoved(snapshot: DataSnapshot, previousChildName: String?) {}
-            override fun onCancelled(error: DatabaseError) {}
         }
-        requestsRef.addChildEventListener(listener)
-        followChildListener = listener
+        notificationHandler?.post(notificationRunnable!!)
     }
 
-    // MESSAGES
-    fun startMessageListeners(context: Context) {
-        val user = FirebaseAuth.getInstance().currentUser ?: return
-        val uid = user.uid
-        // If already attached to root for this uid, skip
-        if (messagesRootListener != null && attachedUid == uid) return
-        attachedUid = uid
-        attachStartMs = System.currentTimeMillis()
-        ensureChannel(context)
-
-        // Detach previous
-        messagesRootListener?.let {
-            FirebaseDatabase.getInstance().getReference("Messages").removeEventListener(it)
-        }
-        chatListeners.forEach { (chatId, l) ->
-            FirebaseDatabase.getInstance().getReference("Messages").child(chatId).removeEventListener(l)
-        }
-        chatListeners.clear()
-
-        val rootRef = FirebaseDatabase.getInstance().getReference("Messages")
-        val rootListener = object : ChildEventListener {
-            override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) {
-                val chatId = snapshot.key ?: return
-                // ChatId format: smallerUid_biggerUid; we just check contains current uid
-                if (!chatId.contains(uid)) return
-                attachChatListener(context, chatId)
-            }
-            override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) {
-                val chatId = snapshot.key ?: return
-                if (!chatId.contains(uid)) return
-                // Ensure listener exists
-                attachChatListener(context, chatId)
-            }
-            override fun onChildRemoved(snapshot: DataSnapshot) {
-                val chatId = snapshot.key ?: return
-                chatListeners.remove(chatId)?.let {
-                    FirebaseDatabase.getInstance().getReference("Messages").child(chatId).removeEventListener(it)
-                }
-            }
-            override fun onChildMoved(snapshot: DataSnapshot, previousChildName: String?) {}
-            override fun onCancelled(error: DatabaseError) {}
-        }
-        rootRef.addChildEventListener(rootListener)
-        messagesRootListener = rootListener
+    fun stopNotificationPolling() {
+        isPolling = false
+        notificationRunnable?.let { notificationHandler?.removeCallbacks(it) }
+        notificationRunnable = null
     }
 
-    private fun attachChatListener(context: Context, chatId: String) {
-        if (chatListeners.containsKey(chatId)) return
+    private fun fetchNotifications(context: Context, userId: String) {
+        if (!isPolling) return // Stop if polling was stopped
+        
+        val url = BASE_URL + "notifications_fetch.php"
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val ref = FirebaseDatabase.getInstance().getReference("Messages").child(chatId)
-        val l = object : ChildEventListener {
-            override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) {
-                val message = snapshot.getValue(Message::class.java) ?: return
-                val currentUid = FirebaseAuth.getInstance().currentUser?.uid ?: return
-                // Only notify incoming, not deleted, not while viewing this chat, not old
-                if (message.receiverId != currentUid) return
-                if (message.deleted == true) return
-                if (message.timestamp < attachStartMs) return
-                if (activeChatId == chatId) return
-                val msgKey = "msg_" + (message.messageId ?: snapshot.key ?: return)
-                if (wasNotified(prefs, msgKey)) return
+        val since = lastNotificationCheck
 
-                // Decide summary
-                val summary = when {
-                    !message.imageBase64.isNullOrBlank() || !message.imageUrl.isNullOrBlank() -> "sent you a photo"
-                    !message.postId.isNullOrBlank() -> "shared a post"
-                    !message.text.isNullOrBlank() -> "sent you a message"
-                    else -> "sent you a message"
-                }
-
-                val otherUid = otherIdFromChat(chatId, currentUid) ?: return
-                // Lookup sender name (other user)
-                FirebaseDatabase.getInstance().getReference("Users").child(otherUid).child("uname").get()
-                    .addOnSuccessListener { unameSnap ->
-                        val uname = unameSnap.getValue(String::class.java) ?: "Someone"
-                        showMessageNotification(context, chatId, otherUid, uname, summary)
-                        markNotified(prefs, msgKey)
+        val req = object : StringRequest(
+            Method.POST, url,
+            { resp ->
+                if (isPolling) {
+                    try {
+                        val trimmedResp = resp.trim()
+                        if (trimmedResp.isNotEmpty()) {
+                            Log.d("NotificationHelper", "Notification response: ${trimmedResp.take(500)}")
+                            val j = JSONObject(trimmedResp)
+                            if (j.optInt("status", 0) == 1) {
+                                val arr = j.optJSONArray("notifications") ?: JSONArray()
+                                Log.d("NotificationHelper", "Found ${arr.length()} notifications")
+                                for (i in 0 until arr.length()) {
+                                    try {
+                                        val notif = arr.getJSONObject(i)
+                                        processNotification(context, notif, prefs)
+                                    } catch (e: Exception) {
+                                        Log.e("NotificationHelper", "Error processing notification at index $i: ${e.localizedMessage}", e)
+                                    }
+                                }
+                                // Update last check time
+                                lastNotificationCheck = System.currentTimeMillis()
+                                prefs.edit().putLong("last_notification_check", lastNotificationCheck).apply()
+                            } else {
+                                Log.w("NotificationHelper", "Server returned status != 1: ${j.optString("error", "Unknown error")}")
+                            }
+                        } else {
+                            Log.w("NotificationHelper", "Empty response from server")
+                        }
+                    } catch (e: JSONException) {
+                        Log.e("NotificationHelper", "JSON parse error: ${e.localizedMessage}. Response: ${resp.take(200)}", e)
+                    } catch (e: Exception) {
+                        Log.e("NotificationHelper", "Error parsing notifications: ${e.localizedMessage}", e)
                     }
+                }
+            },
+            { err ->
+                Log.e("NotificationHelper", "Error fetching notifications: ${err.message}", err)
             }
-            override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) {}
-            override fun onChildRemoved(snapshot: DataSnapshot) {}
-            override fun onChildMoved(snapshot: DataSnapshot, previousChildName: String?) {}
-            override fun onCancelled(error: DatabaseError) {}
+        ) {
+            override fun getParams(): MutableMap<String, String> {
+                val map = HashMap<String, String>()
+                map["user_id"] = userId
+                if (since > 0) {
+                    map["since"] = since.toString()
+                }
+                return map
+            }
+
+            override fun getHeaders(): MutableMap<String, String> {
+                val headers = HashMap<String, String>()
+                headers["Cache-Control"] = "no-cache, no-store"
+                headers["Pragma"] = "no-cache"
+                return headers
+            }
         }
-        ref.addChildEventListener(l)
-        chatListeners[chatId] = l
+        req.setShouldCache(false)
+        try {
+            Volley.newRequestQueue(context).add(req)
+        } catch (e: Exception) {
+            Log.e("NotificationHelper", "Error adding request to queue: ${e.localizedMessage}", e)
+        }
     }
 
-    private fun otherIdFromChat(chatId: String, currentUid: String): String? {
-        return when {
-            chatId.startsWith(currentUid + "_") -> chatId.substring(currentUid.length + 1)
-            chatId.endsWith("_" + currentUid) -> chatId.substring(0, chatId.length - currentUid.length - 1)
-            else -> null
+    private fun processNotification(context: Context, notif: JSONObject, prefs: SharedPreferences) {
+        try {
+            val type = notif.optString("type")
+            val notifId = notif.optString("notification_id")
+
+            if (type.isBlank() || notifId.isBlank()) {
+                Log.w("NotificationHelper", "Invalid notification: missing type or id")
+                return
+            }
+
+            Log.d("NotificationHelper", "Processing notification: type=$type, id=$notifId")
+
+            // Skip if already notified
+            if (wasNotified(prefs, notifId)) {
+                Log.d("NotificationHelper", "Skipping already notified: $notifId")
+                return
+            }
+
+            when (type) {
+                "message" -> {
+                    val chatId = notif.optString("chat_id")
+                    // Don't notify if user is currently viewing this chat
+                    if (activeChatId == chatId) {
+                        Log.d("NotificationHelper", "Skipping message notification - user is viewing this chat")
+                        return
+                    }
+
+                    val senderId = notif.optString("sender_id")
+                    val senderName = notif.optString("sender_name", "Someone")
+                    val hasImage = notif.optInt("has_image", 0) == 1
+                    val hasPost = notif.optInt("has_post", 0) == 1
+                    val text = notif.optString("text", "")
+
+                    val summary = when {
+                        hasImage -> "sent you a photo"
+                        hasPost -> "shared a post"
+                        text.isNotBlank() -> text.take(50)
+                        else -> "sent you a message"
+                    }
+
+                    showMessageNotification(context, chatId, senderId, senderName, summary)
+                    markNotified(prefs, notifId)
+                }
+                "follow_request" -> {
+                    val followerId = notif.optString("follower_id")
+                    val followerName = notif.optString("follower_name", "Someone")
+                    showFollowRequestNotification(context, followerName)
+                    markNotified(prefs, notifId)
+                }
+                "screenshot" -> {
+                    val chatId = notif.optString("chat_id")
+                    // Don't notify if user is currently viewing this chat
+                    if (activeChatId == chatId) {
+                        Log.d("NotificationHelper", "Skipping screenshot notification - user is viewing this chat")
+                        return
+                    }
+
+                    val senderId = notif.optString("sender_id")
+                    val senderName = notif.optString("sender_name", "Someone")
+                    if (chatId.isNotBlank() && senderId.isNotBlank()) {
+                        showScreenshotNotification(context, chatId, senderId, senderName)
+                        markNotified(prefs, notifId)
+                    } else {
+                        Log.w("NotificationHelper", "Screenshot notification missing chat_id or sender_id")
+                    }
+                }
+                else -> {
+                    Log.w("NotificationHelper", "Unknown notification type: $type")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("NotificationHelper", "Error processing notification: ${e.localizedMessage}", e)
         }
     }
 
@@ -199,153 +244,120 @@ object NotificationHelper {
     }
 
     private fun showFollowRequestNotification(context: Context, requesterName: String) {
-        val intent = Intent(context, MainActivity12::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra("source", "follow_request")
-        }
-        val pending = androidx.core.app.TaskStackBuilder.create(context).run {
-            addNextIntentWithParentStack(intent)
-            getPendingIntent(201, android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE)
-        }
+        try {
+            val intent = Intent(context, MainActivity12::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                putExtra("source", "follow_request")
+            }
+            val pending = androidx.core.app.TaskStackBuilder.create(context).run {
+                addNextIntentWithParentStack(intent)
+                getPendingIntent(201, android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE)
+            }
 
-        val notif = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle("New follow request")
-            .setContentText("$requesterName requested to follow you")
-            .setColor(context.getColor(R.color.button))
-            .setAutoCancel(true)
-            .setContentIntent(pending)
-            .build()
+            val notif = NotificationCompat.Builder(context, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_launcher_foreground)
+                .setContentTitle("New follow request")
+                .setContentText("$requesterName requested to follow you")
+                .setColor(context.getColor(R.color.button))
+                .setAutoCancel(true)
+                .setContentIntent(pending)
+                .build()
 
-        if (Build.VERSION.SDK_INT >= 33) {
-            val granted = context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED
-            if (!granted) return
+            if (Build.VERSION.SDK_INT >= 33) {
+                val granted = context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                if (!granted) {
+                    Log.d("NotificationHelper", "Notification permission not granted")
+                    return
+                }
+            }
+            NotificationManagerCompat.from(context).notify(NOTIF_ID_BASE + (requesterName.hashCode() and 0x0FFF), notif)
+        } catch (e: Exception) {
+            Log.e("NotificationHelper", "Error showing follow request notification: ${e.localizedMessage}", e)
         }
-        NotificationManagerCompat.from(context).notify(NOTIF_ID_BASE + (requesterName.hashCode() and 0x0FFF), notif)
     }
 
     private fun showMessageNotification(context: Context, chatId: String, otherUid: String, senderName: String, summary: String) {
-        val intent = Intent(context, MainActivity9::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra("receiverId", otherUid)
-            putExtra("chatName", senderName)
-        }
-        val pending = androidx.core.app.TaskStackBuilder.create(context).run {
-            addNextIntentWithParentStack(intent)
-            getPendingIntent(301, android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE)
-        }
+        try {
+            val intent = Intent(context, MainActivity9::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                putExtra("receiverId", otherUid)
+                putExtra("chatName", senderName)
+            }
+            val pending = androidx.core.app.TaskStackBuilder.create(context).run {
+                addNextIntentWithParentStack(intent)
+                getPendingIntent(301, android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE)
+            }
 
-        val notif = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle(senderName)
-            .setContentText("$senderName $summary")
-            .setColor(context.getColor(R.color.button))
-            .setAutoCancel(true)
-            .setContentIntent(pending)
-            .build()
+            val notif = NotificationCompat.Builder(context, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_launcher_foreground)
+                .setContentTitle(senderName)
+                .setContentText("$senderName $summary")
+                .setColor(context.getColor(R.color.button))
+                .setAutoCancel(true)
+                .setContentIntent(pending)
+                .build()
 
-        if (Build.VERSION.SDK_INT >= 33) {
-            val granted = context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED
-            if (!granted) return
+            if (Build.VERSION.SDK_INT >= 33) {
+                val granted = context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                if (!granted) {
+                    Log.d("NotificationHelper", "Notification permission not granted")
+                    return
+                }
+            }
+            NotificationManagerCompat.from(context).notify(NOTIF_ID_BASE + (chatId.hashCode() and 0x0FFF), notif)
+        } catch (e: Exception) {
+            Log.e("NotificationHelper", "Error showing message notification: ${e.localizedMessage}", e)
         }
-        NotificationManagerCompat.from(context).notify(NOTIF_ID_BASE + (chatId.hashCode() and 0x0FFF), notif)
+    }
+
+
+    private fun showScreenshotNotification(context: Context, chatId: String, otherUid: String, otherName: String) {
+        try {
+            val intent = Intent(context, MainActivity9::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                putExtra("receiverId", otherUid)
+                putExtra("chatName", otherName)
+            }
+            val pending = androidx.core.app.TaskStackBuilder.create(context).run {
+                addNextIntentWithParentStack(intent)
+                getPendingIntent(401, android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE)
+            }
+
+            val notif = NotificationCompat.Builder(context, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_launcher_foreground)
+                .setContentTitle(otherName)
+                .setContentText("$otherName took a screenshot of the chat")
+                .setColor(context.getColor(R.color.button))
+                .setAutoCancel(true)
+                .setContentIntent(pending)
+                .build()
+
+            if (Build.VERSION.SDK_INT >= 33) {
+                val granted = context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                if (!granted) {
+                    Log.d("NotificationHelper", "Notification permission not granted")
+                    return
+                }
+            }
+            NotificationManagerCompat.from(context).notify(NOTIF_ID_BASE + (chatId.hashCode() and 0x0FFF) + 77, notif)
+        } catch (e: Exception) {
+            Log.e("NotificationHelper", "Error showing screenshot notification: ${e.localizedMessage}", e)
+        }
+    }
+
+    // Legacy methods for backward compatibility - now just call startNotificationPolling
+    fun startFollowRequestListener(context: Context) {
+        // This is now handled by startNotificationPolling
+        // Keep for backward compatibility
+    }
+
+    fun startMessageListeners(context: Context) {
+        // This is now handled by startNotificationPolling
+        // Keep for backward compatibility
     }
 
     fun startScreenshotListeners(context: Context) {
-        val user = FirebaseAuth.getInstance().currentUser ?: return
-        val uid = user.uid
-        ensureChannel(context)
-
-        // Detach previous
-        screenshotRootListener?.let { FirebaseDatabase.getInstance().getReference("Screenshots").removeEventListener(it) }
-        screenshotChatListeners.forEach { (chatId, l) ->
-            FirebaseDatabase.getInstance().getReference("Screenshots").child(chatId).removeEventListener(l)
-        }
-        screenshotChatListeners.clear()
-
-        val root = FirebaseDatabase.getInstance().getReference("Screenshots")
-        val rootListener = object : ChildEventListener {
-            override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) {
-                val chatId = snapshot.key ?: return
-                if (!chatId.contains(uid)) return
-                attachScreenshotChatListener(context, chatId)
-            }
-            override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) {
-                val chatId = snapshot.key ?: return
-                if (!chatId.contains(uid)) return
-                attachScreenshotChatListener(context, chatId)
-            }
-            override fun onChildRemoved(snapshot: DataSnapshot) {
-                val chatId = snapshot.key ?: return
-                screenshotChatListeners.remove(chatId)?.let {
-                    FirebaseDatabase.getInstance().getReference("Screenshots").child(chatId).removeEventListener(it)
-                }
-            }
-            override fun onChildMoved(snapshot: DataSnapshot, previousChildName: String?) {}
-            override fun onCancelled(error: DatabaseError) {}
-        }
-        root.addChildEventListener(rootListener)
-        screenshotRootListener = rootListener
-    }
-
-    private fun attachScreenshotChatListener(context: Context, chatId: String) {
-        if (screenshotChatListeners.containsKey(chatId)) return
-        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val ref = FirebaseDatabase.getInstance().getReference("Screenshots").child(chatId)
-        val l = object : ChildEventListener {
-            override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) {
-                val map = snapshot.value as? Map<*, *> ?: return
-                val by = map["by"] as? String ?: return
-                val to = map["to"] as? String ?: return
-                val ts = (map["timestamp"] as? Number)?.toLong() ?: 0L
-                val currentUid = FirebaseAuth.getInstance().currentUser?.uid ?: return
-                // Only notify if current user is the recipient
-                if (to != currentUid) return
-                if (activeChatId == chatId) return
-                val key = "shot_" + snapshot.key
-                if (wasNotified(prefs, key)) return
-
-                val otherUid = otherIdFromChat(chatId, currentUid) ?: return
-                FirebaseDatabase.getInstance().getReference("Users").child(otherUid).child("uname").get()
-                    .addOnSuccessListener { unameSnap ->
-                        val uname = unameSnap.getValue(String::class.java) ?: "Someone"
-                        showScreenshotNotification(context, chatId, otherUid, uname)
-                        markNotified(prefs, key)
-                    }
-            }
-            override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) {}
-            override fun onChildRemoved(snapshot: DataSnapshot) {}
-            override fun onChildMoved(snapshot: DataSnapshot, previousChildName: String?) {}
-            override fun onCancelled(error: DatabaseError) {}
-        }
-        ref.addChildEventListener(l)
-        screenshotChatListeners[chatId] = l
-    }
-
-    private fun showScreenshotNotification(context: Context, chatId: String, otherUid: String, otherName: String) {
-        val intent = Intent(context, MainActivity9::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra("receiverId", otherUid)
-            putExtra("chatName", otherName)
-        }
-        val pending = androidx.core.app.TaskStackBuilder.create(context).run {
-            addNextIntentWithParentStack(intent)
-            getPendingIntent(401, android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE)
-        }
-
-        val notif = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle(otherName)
-            .setContentText("$otherName took a screenshot of the chat")
-            .setColor(context.getColor(R.color.button))
-            .setAutoCancel(true)
-            .setContentIntent(pending)
-            .build()
-
-        if (Build.VERSION.SDK_INT >= 33) {
-            val granted = context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED
-            if (!granted) return
-        }
-        NotificationManagerCompat.from(context).notify(NOTIF_ID_BASE + (chatId.hashCode() and 0x0FFF) + 77, notif)
+        // This is now handled by startNotificationPolling
+        // Keep for backward compatibility
     }
 }

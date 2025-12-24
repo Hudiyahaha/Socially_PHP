@@ -133,9 +133,10 @@ class MainActivity5 : AppCompatActivity() {
 
         val postRecycler= findViewById<RecyclerView>(R.id.postRecycler)
         postRecycler.layoutManager = LinearLayoutManager(this, LinearLayoutManager.VERTICAL, false)
-        postAdapter = FeedPostAdapter(postList)
+        postAdapter = FeedPostAdapter(postList, userId,this)
         postRecycler.adapter = postAdapter
         fetchPosts()
+
 
 
 
@@ -185,12 +186,12 @@ class MainActivity5 : AppCompatActivity() {
             }
         }
 
-        // In-app notifications for follow requests (Android 13+ permission safe)
+        // In-app notifications using PHP/MySQL (messages, follow requests, screenshots)
         NotificationHelper.ensureChannel(this)
         NotificationHelper.maybeRequestPostNotifications(this)
-        NotificationHelper.startFollowRequestListener(this)
-        NotificationHelper.startMessageListeners(this)
-        NotificationHelper.startScreenshotListeners(this)
+        if (userId.isNotBlank()) {
+            NotificationHelper.startNotificationPolling(this, userId)
+        }
     }
 
     fun uploadStory(uri: Uri, type: String) {
@@ -247,39 +248,62 @@ class MainActivity5 : AppCompatActivity() {
             Method.POST,
             "http://sociallyah.atwebpages.com/get_story.php",
             { response ->
-                try {
-                    val jsonArray = JSONArray(response)
-                    val storyList = mutableListOf<Story>()
+                val trimmed = response.trim()
+                // Check if response is valid JSON array (should start with [)
+                if (trimmed.startsWith("[")) {
+                    try {
+                        Log.e("FETCH_STORIES_RAW", "RAW RESPONSE: [$trimmed]")
 
-                    for (i in 0 until jsonArray.length()) {
-                        val obj = jsonArray.getJSONObject(i)
-                        val storyUserId = obj.getString("userId")
+                        val jsonArray = JSONArray(trimmed)
+                        val storyList = mutableListOf<Story>()
 
-                        // Skip your own story
-                        if (storyUserId == currentUserId) continue
+                        for (i in 0 until jsonArray.length()) {
+                            val obj = jsonArray.getJSONObject(i)
+                            val storyUserId = obj.getString("userId")
 
-                        storyList.add(
-                            Story(
-                                id = obj.getString("id"),
-                                userId = storyUserId,
-                                mediaUrl = "http://sociallyah.atwebpages.com/i.php?p=${obj.getString("media")}",   // URL from PHP
-                                mediaType = obj.getString("type"),
-                                timestamp = obj.getLong("timestamp"),
-                                username = obj.getString("username"),
-                                dpUrl = obj.optString("dp")
-                                // profile picture URL
+                            // Skip your own story
+                            if (storyUserId == currentUserId) continue
+
+                            storyList.add(
+                                Story(
+                                    id = obj.getString("id"),
+                                    userId = storyUserId,
+                                    mediaUrl = "http://sociallyah.atwebpages.com/i.php?p=${obj.getString("media")}",   // URL from PHP
+                                    mediaType = obj.getString("type"),
+                                    timestamp = obj.getLong("timestamp"),
+                                    username = obj.getString("username"),
+                                    dpUrl = obj.optString("dp")
+                                    // profile picture URL
+                                )
                             )
-                        )
-                    }
+                        }
 
-                    storyAdapter.apply {
-                        stories.clear()
-                        stories.addAll(storyList)
-                        notifyDataSetChanged()
-                    }
+                        storyAdapter.apply {
+                            stories.clear()
+                            stories.addAll(storyList)
+                            notifyDataSetChanged()
+                        }
 
-                } catch (e: Exception) {
-                    Log.e("FETCH_STORIES", "JSON parse error", e)
+                    } catch (e: Exception) {
+                        Log.e("FETCH_STORIES", "JSON parse error", e)
+                    }
+                } else if (trimmed.startsWith("{")) {
+                    // Handle JSON error response from server
+                    try {
+                        val jsonObj = org.json.JSONObject(trimmed)
+                        if (jsonObj.optBoolean("error", false)) {
+                            val errorMsg = jsonObj.optString("message", "Unknown server error")
+                            Log.e("FETCH_STORIES", "Server error: $errorMsg")
+                            // Optionally show a toast to the user
+                            runOnUiThread {
+                                android.widget.Toast.makeText(this, "Connection limit exceeded. Please try again later.", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e("FETCH_STORIES", "Error parsing error response", e)
+                    }
+                } else {
+                    Log.e("FETCH_STORIES", "Invalid JSON response (server error): ${trimmed.take(200)}")
                 }
             },
             { error -> Log.e("FETCH_STORIES", error.toString()) }
@@ -291,13 +315,14 @@ class MainActivity5 : AppCompatActivity() {
 
         Volley.newRequestQueue(this).add(request)
     }
-
     fun fetchPosts() {
+        val prefs = getSharedPreferences("user_session", MODE_PRIVATE)
+        val currentUserId = prefs.getString("userId", "") ?: return
         val url = "http://sociallyah.atwebpages.com/get_feedpost.php"
         val queue = Volley.newRequestQueue(this)
 
         val request = object : StringRequest(
-            Request.Method.GET, url,
+            Request.Method.POST, url,
             StringRequest@{ response ->
                 try {
                     val jsonArray = JSONArray(response)
@@ -310,26 +335,28 @@ class MainActivity5 : AppCompatActivity() {
 
                     for (i in 0 until jsonArray.length()) {
                         val obj = jsonArray.getJSONObject(i)
-                        val mediaUrl = obj.getString("media")      // URL from i.php
+                        val mediaUrl = obj.getString("media")
                         val mediaType = obj.getString("media_type")
-                        val dpUrl = obj.optString("dp", "")        // URL from i.php
+                        val dpUrl = obj.optString("dp", "")
+
+                        Log.d("FEED", "Post #$i -> mediaUrl: $mediaUrl, mediaType: $mediaType, dp length: ${dpUrl.length}")
 
                         postList.add(
                             Post(
                                 postId = obj.getString("post_id"),
                                 userId = obj.getString("user_id"),
-                                mediaUrlList = listOf(mediaUrl),      // URL list
+                                mediaUrlList = listOf(mediaUrl),
                                 mediaTypeList = listOf(mediaType),
                                 timestamp = obj.getLong("timestamp"),
                                 username = obj.optString("username", ""),
-                                caption = "",                         // add if available later
-                                userProfileBase64 = dpUrl,            // URL now
-                                likes = mutableListOf()
+                                caption = "",
+                                userProfileBase64 = dpUrl
                             )
                         )
                     }
 
                     postAdapter.notifyDataSetChanged()
+                    postAdapter.fetchLikesForPosts()
 
                 } catch (e: Exception) {
                     e.printStackTrace()
@@ -339,14 +366,14 @@ class MainActivity5 : AppCompatActivity() {
             { error ->
                 Toast.makeText(this, "Fetch failed: ${error.message}", Toast.LENGTH_LONG).show()
             }
-        ) {}
+        ) {
+            override fun getParams(): MutableMap<String, String> {
+                return hashMapOf("userId" to currentUserId)
+            }
+        }
 
         queue.add(request)
     }
-
-
-
-
 
 
     private fun openCamera() {
@@ -363,12 +390,36 @@ class MainActivity5 : AppCompatActivity() {
         }
         cameraLauncher.launch(intent)
     }
+    override fun onResume() {
+        super.onResume()
+        // Restart notification polling when activity resumes
+        val prefs = getSharedPreferences("user_session", MODE_PRIVATE)
+        val userId = prefs.getString("userId", "") ?: ""
+        if (userId.isNotBlank()) {
+            NotificationHelper.startNotificationPolling(this, userId)
+        }
+        // Refresh stories when resuming
+        fetchStories()
+    }
+    
+    override fun onPause() {
+        super.onPause()
+        // Stop notification polling when activity is paused to avoid conflicts
+        // This ensures stories can fetch without interference
+        NotificationHelper.stopNotificationPolling()
+    }
+    
     override fun onStart(){
         super.onStart()
-
     }
+    
     override fun onStop(){
         super.onStop()
-
+    }
+    
+    override fun onDestroy() {
+        super.onDestroy()
+        // Ensure notification polling is stopped when activity is destroyed
+        NotificationHelper.stopNotificationPolling()
     }
 }

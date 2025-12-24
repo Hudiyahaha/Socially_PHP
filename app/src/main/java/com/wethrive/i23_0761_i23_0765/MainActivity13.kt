@@ -91,6 +91,7 @@ class MainActivity13 : AppCompatActivity() {
 
 
         logoutButton.setOnClickListener {
+            setOnlineStatus(0)
             val prefs = getSharedPreferences("user_session", MODE_PRIVATE)
             prefs.edit().clear().apply()   // FULL CLEAR
 
@@ -203,6 +204,22 @@ class MainActivity13 : AppCompatActivity() {
         }
 
         queue.add(request)
+    }
+    private fun setOnlineStatus(status: Int) {
+        val prefs = getSharedPreferences("user_session", MODE_PRIVATE)
+        val userId = prefs.getString("userId", "") ?: return
+
+        val url = "http://sociallyah.atwebpages.com/set_status.php"
+
+        val req = object : StringRequest(Method.POST, url,
+            {},
+            {}
+        ) {
+            override fun getParams(): MutableMap<String, String> =
+                hashMapOf("userId" to userId, "status" to status.toString())
+        }
+
+        Volley.newRequestQueue(this).add(req)
     }
 
 
