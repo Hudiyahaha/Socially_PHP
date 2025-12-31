@@ -9,14 +9,14 @@ This repository previously contained hardcoded secrets that have been removed an
 - **Host**: `fdb1031.runhosting.com`
 - **Database**: `4707354_socially`
 - **Username**: `4707354_socially`
-- **Password**: `12345678ah`
+- **Password**: `12345***ah` (partially masked)
 
 ### 2. Firebase Configuration (in `app/google-services.json`)
-- **API Key**: `AIzaSyCQr7Nf4t8cO762KYDMX9Aq68T80-loH2M`
-- **Project Number**: `318080792961`
+- **API Key**: `AIzaSyC***loH2M` (partially masked)
+- **Project Number**: `318080***961` (partially masked)
 - **Project ID**: `i-0761-23i-0765`
 - **Firebase URL**: `https://i-0761-23i-0765-default-rtdb.firebaseio.com`
-- **Mobile SDK App ID**: `1:318080792961:android:d6bfcb93f583752b831080`
+- **Mobile SDK App ID**: `1:318080792961:android:d6bf***831080` (partially masked)
 
 ## Actions Taken
 
