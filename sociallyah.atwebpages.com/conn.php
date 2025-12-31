@@ -6,10 +6,35 @@ $oldDisplayErrors = ini_set('display_errors', 0);
 // Enable mysqli exception mode to catch connection errors
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
-$host = 'fdb1031.runhosting.com';        // RunHosting usually uses localhost
-$dbname = '4707354_socially';
-$username = '4707354_socially';
-$password = '12345678ah';
+// Load environment variables from .env file
+$envFile = __DIR__ . '/.env';
+if (file_exists($envFile)) {
+    $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    foreach ($lines as $line) {
+        // Skip comments
+        if (strpos(trim($line), '#') === 0) {
+            continue;
+        }
+        // Parse KEY=VALUE format
+        if (strpos($line, '=') !== false) {
+            list($key, $value) = explode('=', $line, 2);
+            $key = trim($key);
+            $value = trim($value);
+            // Remove surrounding quotes if present
+            $value = trim($value, '"\'');
+            if (!empty($key)) {
+                $_ENV[$key] = $value;
+                putenv("$key=$value");
+            }
+        }
+    }
+}
+
+// Get database credentials from environment variables
+$host = getenv('DB_HOST') ?: $_ENV['DB_HOST'] ?? 'localhost';
+$dbname = getenv('DB_NAME') ?: $_ENV['DB_NAME'] ?? '';
+$username = getenv('DB_USERNAME') ?: $_ENV['DB_USERNAME'] ?? '';
+$password = getenv('DB_PASSWORD') ?: $_ENV['DB_PASSWORD'] ?? '';
 
 try {
     // Suppress warnings/errors during connection attempt
